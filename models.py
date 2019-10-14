@@ -35,7 +35,7 @@ def create_compiled_keras_cnn1_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_cnn3_model():
@@ -61,7 +61,7 @@ def create_compiled_keras_cnn3_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_cnn4_model():
@@ -99,7 +99,7 @@ def create_compiled_keras_cnn4_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_vgg16_model():
@@ -118,7 +118,7 @@ def create_compiled_keras_vgg16_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_vgg19_model():
@@ -136,7 +136,7 @@ def create_compiled_keras_vgg19_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 
@@ -154,7 +154,7 @@ def create_compiled_keras_resnet50_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_inception_v3_model():
@@ -172,7 +172,7 @@ def create_compiled_keras_inception_v3_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def get_model(FLAGS):
