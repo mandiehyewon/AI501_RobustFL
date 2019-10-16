@@ -1,0 +1,2 @@
+tensorflow==1.15rc0
+tensorflow_federated
