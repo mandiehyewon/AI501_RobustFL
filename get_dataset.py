@@ -5,6 +5,7 @@ def get_dataset(
     dataset_path,
     img_size,
     target_class,
+    total_epoch,
     batch_size,
     split="train",
     horizontal_flip=True,
@@ -58,6 +59,7 @@ def get_dataset(
         ds = tf.data.Dataset.list_files(
             f"{dataset_path}/{split}_processed/*_{target_class}.jpeg"
         )
+    ds = ds.repeat(total_epoch)
     ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
     ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
     ds = ds.batch(batch_size)
@@ -71,7 +73,7 @@ if __name__ == "__main__":
 
     tf.enable_eager_execution()  # For test
     PATH = "/st2/myung/data/diabetic-retinopathy-detection/kaggle"
-    train_ds_0 = get_dataset(PATH, 512, target_class=0, batch_size=8)
+    train_ds_0 = get_dataset(PATH, 512, target_class=0, total_epoch=1, batch_size=8)
     for img, label in train_ds_0.take(1):
         fig, m_axs = plt.subplots(2, 4, figsize=(16, 8))
         for (x, y, ax) in zip(img, label, m_axs.flatten()):
@@ -80,7 +82,7 @@ if __name__ == "__main__":
             ax.axis("off")
         plt.savefig("train_ds_0.png")
 
-    train_ds_4 = get_dataset(PATH, 512, target_class=4, batch_size=8)
+    train_ds_4 = get_dataset(PATH, 512, target_class=4, total_epoch=1, batch_size=8)
     for img, label in train_ds_4.take(1):
         fig, m_axs = plt.subplots(2, 4, figsize=(16, 8))
         for (x, y, ax) in zip(img, label, m_axs.flatten()):
@@ -89,7 +91,9 @@ if __name__ == "__main__":
             ax.axis("off")
         plt.savefig("train_ds_4.png")
 
-    train_ds_all = get_dataset(PATH, 512, target_class=None, batch_size=8)
+    train_ds_all = get_dataset(
+        PATH, 512, target_class=None, total_epoch=1, batch_size=8
+    )
     for img, label in train_ds_all.take(1):
         fig, m_axs = plt.subplots(2, 4, figsize=(16, 8))
         for (x, y, ax) in zip(img, label, m_axs.flatten()):
