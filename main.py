@@ -10,6 +10,7 @@ import tensorflow_federated as tff
 from absl import app
 from absl import flags
 from datetime import datetime
+import six
 
 flags.DEFINE_string("eval_mode", "train", "Which evaluation mode")
 flags.DEFINE_integer("gpuid", 0, "Which gpu id to use")
@@ -47,6 +48,11 @@ FLAGS = app.flags.FLAGS
 #model = get_model()
 
 def main(argv):
+  tf.compat.v1.enable_v2_behavior()
+  # For high-performance executor stack
+  if six.PY3:
+    tff.framework.set_default_executor(tff.framework.create_local_executor())
+
   train_data, test_data = get_data(FLAGS)
   if FLAGS.use_fl:
     if FLAGS.data == "drd":
