@@ -1,12 +1,13 @@
 import tensorflow as tf
+from absl import app
 
 # inception_v3 : image size needs to be at least 75x75
 # others works in image size 32x32
 
 # Each image's dimension is 28 x 28
-raw_img_rows, raw_img_cols = 28, 28
+raw_img_rows, raw_img_cols = 32, 32
 img_channels = 3
-min_img_rows, min_img_cols = 28, 28
+min_img_rows, min_img_cols = 32, 32
 img_rows = max(min_img_rows, raw_img_rows)
 img_cols = max(min_img_cols, raw_img_cols)
 input_shape = (img_rows, img_cols, img_channels)
@@ -16,7 +17,7 @@ data_dir = "/st2/myung/data/"
 dataset_type = "fashion-mnist"
 cnn_type = "cnn4" # "cnn1","cnn3","cnn4","vgg16","vgg19","resnet50","inception_v3"
 pretrained = "imagenet" # "imagenet" or None
-transfer_learning = True # True or False (False: pretrained weight is fixed)
+transfer_learning = False # True or False (False: pretrained weight is fixed)
 random_seed = 42
 
 def create_compiled_keras_cnn1_model():
@@ -34,7 +35,7 @@ def create_compiled_keras_cnn1_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_cnn3_model():
@@ -60,7 +61,7 @@ def create_compiled_keras_cnn3_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_cnn4_model():
@@ -98,7 +99,7 @@ def create_compiled_keras_cnn4_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_vgg16_model():
@@ -117,7 +118,7 @@ def create_compiled_keras_vgg16_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_vgg19_model():
@@ -135,7 +136,7 @@ def create_compiled_keras_vgg19_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 
@@ -153,7 +154,7 @@ def create_compiled_keras_resnet50_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
 
 def create_compiled_keras_inception_v3_model():
@@ -171,8 +172,27 @@ def create_compiled_keras_inception_v3_model():
     model.compile(
         loss=tf.keras.losses.CategoricalCrossentropy(),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=['accuracy'])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
     return model
+
+def get_model(FLAGS):
+    if FLAGS.cnn_type == "cnn1":
+        cnn_model = create_compiled_keras_cnn1_model()
+    elif FLAGS.cnn_type == "cnn3":
+        cnn_model = create_compiled_keras_cnn3_model()
+    elif FLAGS.cnn_type == "cnn4":
+        cnn_model = create_compiled_keras_cnn4_model()
+    elif FLAGS.cnn_type == "vgg16":
+        cnn_model = create_compiled_keras_vgg16_model()
+    elif FLAGS.cnn_type == "vgg19":
+        cnn_model = create_compiled_keras_vgg19_model()
+    elif FLAGS.cnn_type == "resnet50":
+        cnn_model = create_compiled_keras_resnet50_model()
+    elif FLAGS.cnn_type == "inception_v3":
+        cnn_model = create_compiled_keras_inception_v3_model()
+
+    return cnn_model
+
 
 if __name__ == "__main__":
 
