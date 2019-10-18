@@ -25,8 +25,8 @@ def get_data(FLAGS):
     train, test = tf.keras.datasets.cifar10.load_data()
     FLAGS.num_classes = 10
   elif FLAGS.data == "drd":
-    train = [get_dataset(d, FLAGS.n_epochs, FLAGS.batch_size, split="train") for d in range(FLAGS.num_classes)]
-    test = [get_dataset(d, FLAGS.n_epochs, FLAGS.batch_size, split="val") for d in range(FLAGS.num_classes)]
+    train = [get_dataset(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="train") for d in range(FLAGS.num_classes)]
+    test = [get_dataset(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="val") for d in range(FLAGS.num_classes)]
 
   if FLAGS.data != "drd":
     if FLAGS.use_fl:

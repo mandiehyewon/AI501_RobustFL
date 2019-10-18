@@ -9,6 +9,7 @@ from models import get_model
 import tensorflow_federated as tff
 from absl import app
 from absl import flags
+from datetime import datetime
 
 flags.DEFINE_string("eval_mode", "train", "Which evaluation mode")
 flags.DEFINE_integer("gpuid", 0, "Which gpu id to use")
@@ -19,6 +20,7 @@ flags.DEFINE_string("mode", "base", "Which mode to use.")
 flags.DEFINE_string("cnn_type", "cnn1", "Which mode to use.")
 flags.DEFINE_string("data", "cifar10", "Which dataset to use.")
 flags.DEFINE_integer("batch_size", 100, "Batch size")
+flags.DEFINE_integer("num_samples", 100, "# of samples used in training")
 flags.DEFINE_integer("save_freq", 20, "Saving frequency for model")
 flags.DEFINE_integer("n_epochs", 200, "No of epochs")
 flags.DEFINE_integer("directory", None, "Train directory")
@@ -59,9 +61,10 @@ def main(argv):
     iterative_process = tff.learning.build_federated_averaging_process(model_fn)
     state = iterative_process.initialize()
     print("Round starts!")
+    start_time = datetime.now()
     for round_num in range(2, 11):
         state, metrics = iterative_process.next(state, train_data)
-        print('round {:2d}, metrics={}'.format(round_num, metrics))
+        print('round {:2d}, metrics={} Elasped time: {}'.format(round_num, metrics, datetime.now()-start_time))
 
 
 if __name__ == '__main__':
