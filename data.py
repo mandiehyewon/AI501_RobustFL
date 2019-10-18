@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-
+from get_dataset import get_dataset
 
 def get_data_for_fl(FLAGS, source, digit):
   output_sequence = []
@@ -18,14 +18,17 @@ def get_data(FLAGS):
   if FLAGS.data == "mnist":
     train, test = tf.keras.datasets.mnist.load_data()
     FLAGS.num_classes = 10
-  if FLAGS.data == "fmnist":
+  elif FLAGS.data == "fmnist":
     train, test = tf.keras.datasets.fashion_mnist.load_data()
     FLAGS.num_classes = 10
-  if FLAGS.data == "cifar10":
+  elif FLAGS.data == "cifar10":
     train, test = tf.keras.datasets.cifar10.load_data()
     FLAGS.num_classes = 10
-  
-  if FLAGS.use_fl:
+  elif FLAGS.data == "drd":
+    train = [get_dataset(d, FLAGS.epochs, FLAGS.batch_size, split="train") for d in range(FLAGS.num_classes)]
+    test = [get_dataset(d, FLAGS.epochs, FLAGS.batch_size, split="test") for d in range(FLAGS.num_classes)]
+
+  if FLAGS.use_fl and FLAGS.data != "drd":
     train = [get_data_for_fl(FLAGS, train, d) for d in range(FLAGS.num_classes)]
     test = [get_data_for_fl(FLAGS, test, d) for d in range(FLAGS.num_classes)]
   else:

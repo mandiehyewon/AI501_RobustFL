@@ -2,11 +2,11 @@ import tensorflow as tf
 
 
 def get_dataset(
-    dataset_path,
-    img_size,
     target_class,
     total_epoch,
     batch_size,
+    img_size=512,
+    dataset_path="/st2/myung/data/diabetic-retinopathy-detection/kaggle",
     split="train",
     horizontal_flip=True,
     vertical_flip=False,
@@ -17,6 +17,9 @@ def get_dataset(
     random_crop=True,
     crop_rate=0.8,
 ):
+    """Params:
+
+    """
     if random_crop:
         # If use random crop, load image with larger size
         _img_size = int(img_size / crop_rate)
@@ -54,11 +57,9 @@ def get_dataset(
         return img, label
 
     if target_class is None:
-        ds = tf.data.Dataset.list_files(f"{dataset_path}/{split}_processed/*")
+        ds = tf.data.Dataset.list_files("{}/{}_processed/*".format(dataset_path, split))
     else:
-        ds = tf.data.Dataset.list_files(
-            f"{dataset_path}/{split}_processed/*_{target_class}.jpeg"
-        )
+        ds = tf.data.Dataset.list_files("{}/{}_processed/*_{}.jpeg".format(dataset_path, split, target_class))
     ds = ds.repeat(total_epoch)
     ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
     ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
