@@ -1,5 +1,5 @@
 import tensorflow as tf
-
+from glob import glob
 
 def get_dataset(
     target_class,
@@ -8,6 +8,7 @@ def get_dataset(
     img_size=512,
     dataset_path="/st2/myung/data/diabetic-retinopathy-detection/kaggle",
     num_samples=10,
+    balance=True,
     split="train",
     horizontal_flip=True,
     vertical_flip=False,
@@ -58,14 +59,22 @@ def get_dataset(
         return img, label
 
     if target_class is None:
-        ds = tf.data.Dataset.list_files("{}/{}_processed/*".format(dataset_path, split))
+        if balance:
+            num_samples_class = num_samples // 5
+            data_list = []
+            for i in range(5):
+                data_list += glob("{}/{}_processed/*_{}.jpeg".format(dataset_path, split, i))[:num_samples_class]
+        else:
+            data_list = glob("{}/{}_processed/*.jpeg".format(dataset_path, split))[:num_samples]
     else:
-        ds = tf.data.Dataset.list_files("{}/{}_processed/*_{}.jpeg".format(dataset_path, split, target_class))
-    ds = ds.take(num_samples)
-    ds = ds.repeat(total_epoch)
+        data_list = glob("{}/{}_processed/*_{}.jpeg".format(dataset_path, split, target_class))[:num_samples]
+
+    ds = tf.data.Dataset.from_tensor_slices(data_list)
+    ds = ds.shuffle(len(data_list), reshuffle_each_iteration=True)
     ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
     ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
-    ds = ds.batch(batch_size)
+    ds = ds.batch(batch_size, drop_remainder=True)
+    ds = ds.repeat(total_epoch)
     ds = ds.prefetch(1)
     return ds
 
