@@ -22,7 +22,7 @@ flags.DEFINE_integer("batch_size", 100, "Batch size")
 flags.DEFINE_integer("save_freq", 20, "Saving frequency for model")
 flags.DEFINE_integer("n_epochs", 200, "No of epochs")
 flags.DEFINE_integer("directory", None, "Train directory")
-flags.DEFINE_integer("num_classes", None, "No of classes")
+flags.DEFINE_integer("num_classes", 5, "No of classes")
 flags.DEFINE_integer("num_examples_per_user", 1000, "No of examples per user")
 
 flags.DEFINE_integer("seed", None, "Random seed.")
@@ -47,12 +47,18 @@ FLAGS = app.flags.FLAGS
 def main(argv):
   train_data, test_data = get_data(FLAGS)
   if FLAGS.use_fl:
-    sample_batch = train_data[5][-1]
+    if FLAGS.data == "drd":
+      for x,y in train_data[0].take(1):
+        sample_batch = {'x':x.numpy(), 'y':y.numpy()}
+    else:
+      sample_batch = train_data[0][-1]
+
     def model_fn():
         model = get_model(FLAGS)
         return tff.learning.from_compiled_keras_model(model, sample_batch)
     iterative_process = tff.learning.build_federated_averaging_process(model_fn)
     state = iterative_process.initialize()
+    print("Round starts!")
     for round_num in range(2, 11):
         state, metrics = iterative_process.next(state, train_data)
         print('round {:2d}, metrics={}'.format(round_num, metrics))

@@ -7,6 +7,7 @@ def get_dataset(
     batch_size,
     img_size=512,
     dataset_path="/st2/myung/data/diabetic-retinopathy-detection/kaggle",
+    num_samples=10,
     split="train",
     horizontal_flip=True,
     vertical_flip=False,
@@ -60,6 +61,7 @@ def get_dataset(
         ds = tf.data.Dataset.list_files("{}/{}_processed/*".format(dataset_path, split))
     else:
         ds = tf.data.Dataset.list_files("{}/{}_processed/*_{}.jpeg".format(dataset_path, split, target_class))
+    ds = ds.take(num_samples)
     ds = ds.repeat(total_epoch)
     ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
     ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
