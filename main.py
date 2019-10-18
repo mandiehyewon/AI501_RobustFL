@@ -22,6 +22,7 @@ flags.DEFINE_string("cnn_type", "cnn1", "Which mode to use.")
 flags.DEFINE_string("data", "cifar10", "Which dataset to use.")
 flags.DEFINE_integer("batch_size", 100, "Batch size")
 flags.DEFINE_integer("num_samples", 100, "# of samples used in training")
+flags.DEFINE_integer("num_rounds", 10, "# of rounds in federated learning")
 flags.DEFINE_integer("save_freq", 20, "Saving frequency for model")
 flags.DEFINE_integer("n_epochs", 200, "No of epochs")
 flags.DEFINE_integer("directory", None, "Train directory")
@@ -68,7 +69,7 @@ def main(argv):
     state = iterative_process.initialize()
     print("Round starts!")
     start_time = datetime.now()
-    for round_num in range(2, 11):
+    for round_num in range(1, FLAGS.num_rounds + 1):
         state, metrics = iterative_process.next(state, train_data)
         print('round {:2d}, metrics={} Elasped time: {}'.format(round_num, metrics, datetime.now()-start_time))
 
