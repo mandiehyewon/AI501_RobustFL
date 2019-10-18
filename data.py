@@ -39,9 +39,10 @@ def get_data(FLAGS):
     if FLAGS.use_fl:
       train = [get_data_for_fl(FLAGS, train, d) for d in range(FLAGS.num_classes)]
       test = [get_data_for_fl(FLAGS, test, d) for d in range(FLAGS.num_classes)]
-    else:
-      train /= 255
-      test /= 255
+    #else:
+     # print(len(train[0]), train[0].shape)
+      #train[0] = train[0] / 255
+      #test[0] = test[0] / 255
 
   return train, test
 

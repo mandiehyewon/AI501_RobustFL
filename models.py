@@ -1,12 +1,13 @@
 import tensorflow as tf
+from tensorflow.python.keras.optimizer_v2 import gradient_descent
 
 # inception_v3 : image size needs to be at least 75x75
 # others works in image size 32x32
 
 # Each image's dimension is 28 x 28
-raw_img_rows, raw_img_cols = 28, 28
-img_channels = 3
 min_img_rows, min_img_cols = 224, 224
+min_img_rows, min_img_cols = 32, 32
+>>>>>>> Towards fixes
 img_rows = max(min_img_rows, raw_img_rows)
 img_cols = max(min_img_cols, raw_img_cols)
 input_shape = (img_rows, img_cols, img_channels)
@@ -37,10 +38,12 @@ def create_compiled_keras_cnn1_model():
             tf.keras.layers.Dense(10, activation="softmax"),
         ]
     )
+    def loss_fn(y_true, y_pred):
+        return tf.reduce_mean(tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred))
 
     model.compile(
-        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
-        optimizer=tf.keras.optimizers.Adam(),
+        loss=loss_fn,
+        optimizer=gradient_descent.SGD(learning_rate=0.02),
         metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")],
     )
     return model
@@ -152,9 +155,12 @@ def create_compiled_keras_vgg19_model():
             tf.keras.layers.Dense(10, activation="softmax"),
         ]
     )
+    def loss_fn(y_true, y_pred):
+        return tf.reduce_mean(tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred))
+
     model.compile(
-        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
-        optimizer=tf.keras.optimizers.Adam(),
+        loss=loss_fn,
+        optimizer=gradient_descent.SGD(learning_rate=0.02),
         metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")],
     )
     return model
