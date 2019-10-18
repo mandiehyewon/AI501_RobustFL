@@ -1,17 +1,16 @@
 import tensorflow as tf
-from absl import app
 
 # inception_v3 : image size needs to be at least 75x75
 # others works in image size 32x32
 
 # Each image's dimension is 28 x 28
-raw_img_rows, raw_img_cols = 32, 32
+raw_img_rows, raw_img_cols = 28, 28
 img_channels = 3
 min_img_rows, min_img_cols = 32, 32
 img_rows = max(min_img_rows, raw_img_rows)
 img_cols = max(min_img_cols, raw_img_cols)
 input_shape = (img_rows, img_cols, img_channels)
-
+"""
 # configure
 data_dir = "/st2/myung/data/"
 dataset_type = "fashion-mnist"
@@ -19,7 +18,7 @@ cnn_type = "cnn4" # "cnn1","cnn3","cnn4","vgg16","vgg19","resnet50","inception_v
 pretrained = "imagenet" # "imagenet" or None
 transfer_learning = False # True or False (False: pretrained weight is fixed)
 random_seed = 42
-
+"""
 def create_compiled_keras_cnn1_model():
     model = tf.keras.models.Sequential([
         tf.keras.layers.Conv2D(32, kernel_size=(3, 3), activation='relu', input_shape=input_shape),
@@ -33,9 +32,9 @@ def create_compiled_keras_cnn1_model():
     ])
 
     model.compile(
-        loss=tf.keras.losses.CategoricalCrossentropy(),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")])
     return model
 
 def create_compiled_keras_cnn3_model():
@@ -59,9 +58,9 @@ def create_compiled_keras_cnn3_model():
     ])
 
     model.compile(
-        loss=tf.keras.losses.CategoricalCrossentropy(),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")])
     return model
 
 def create_compiled_keras_cnn4_model():
@@ -97,9 +96,9 @@ def create_compiled_keras_cnn4_model():
     ])
 
     model.compile(
-        loss=tf.keras.losses.CategoricalCrossentropy(),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")])
     return model
 
 def create_compiled_keras_vgg16_model():
@@ -116,9 +115,9 @@ def create_compiled_keras_vgg16_model():
     ])
 
     model.compile(
-        loss=tf.keras.losses.CategoricalCrossentropy(),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")])
     return model
 
 def create_compiled_keras_vgg19_model():
@@ -134,9 +133,9 @@ def create_compiled_keras_vgg19_model():
         tf.keras.layers.Dense(10, activation='softmax')
     ])
     model.compile(
-        loss=tf.keras.losses.CategoricalCrossentropy(),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")])
     return model
 
 
@@ -152,9 +151,9 @@ def create_compiled_keras_resnet50_model():
         tf.keras.layers.Dense(10, activation='softmax')
     ])
     model.compile(
-        loss=tf.keras.losses.CategoricalCrossentropy(),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")])
     return model
 
 def create_compiled_keras_inception_v3_model():
@@ -170,9 +169,9 @@ def create_compiled_keras_inception_v3_model():
         tf.keras.layers.Dense(10, activation='softmax')
     ])
     model.compile(
-        loss=tf.keras.losses.CategoricalCrossentropy(),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.Adam(),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")])
     return model
 
 def get_model(FLAGS):
@@ -204,6 +203,13 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import os
 
+    data_dir = "/st2/myung/data/"
+    dataset_type = "fashion-mnist"
+    cnn_type = "cnn4" # "cnn1","cnn3","cnn4","vgg16","vgg19","resnet50","inception_v3"
+    pretrained = "imagenet" # "imagenet" or None
+    transfer_learning = False # True or False (False: pretrained weight is fixed)
+    random_seed = 42
+
     tf.compat.v1.set_random_seed(random_seed)
 
     # Load training and test data into dataframes
@@ -212,11 +218,14 @@ if __name__ == "__main__":
 
     # X forms the training images, and y forms the training labels
     X = np.array(data_train.iloc[:, 1:])
-    y = to_categorical(np.array(data_train.iloc[:, 0]))
+    y = np.array(data_train.iloc[:, 0], dtype=np.int32)
 
     # X_test forms the test images, and y_test forms the test labels
     X_test = np.array(data_test.iloc[:, 1:])
-    y_test = to_categorical(np.array(data_test.iloc[:, 0]))
+    y_test = np.array(data_test.iloc[:, 0], dtype=np.int32)
+
+    # Display their new shapes
+    print(X.shape, X_test.shape)
 
     # Convert the training and test images into 3 channels
     X = np.dstack([X] * 3)
@@ -228,9 +237,12 @@ if __name__ == "__main__":
     X = X.reshape(X.shape[0], raw_img_rows, raw_img_cols, img_channels)
     X_test = X_test.reshape(X_test.shape[0], raw_img_rows, raw_img_cols, img_channels)
 
+
     if raw_img_cols != img_cols or raw_img_cols != img_cols:
         X = np.asarray([img_to_array(array_to_img(im, scale=False).resize((img_rows, img_cols))) for im in X])
         X_test = np.asarray([img_to_array(array_to_img(im, scale=False).resize((img_rows, img_cols))) for im in X_test])
+
+
 
     # Prepare the training images
     X = X.astype('float32')
@@ -247,6 +259,7 @@ if __name__ == "__main__":
         plt.close()
     # Here I split original training data to sub-training (80%) and validation data (20%)
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=13)
+    print(y_val)
     print(X_train.shape, X_val.shape, y_train.shape, y_val.shape)
 
     if cnn_type == "cnn1":
@@ -282,8 +295,8 @@ if __name__ == "__main__":
 
     # plot result
 
-    accuracy = result.history['accuracy']
-    val_accuracy = result.history['val_accuracy']
+    accuracy = result.history['acc']
+    val_accuracy = result.history['val_acc']
     loss = result.history['loss']
     val_loss = result.history['val_loss']
     epochs = range(len(accuracy))
