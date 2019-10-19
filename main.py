@@ -107,11 +107,14 @@ def main(argv):
         save_model(state, result_dir, "round_{}".format(round_num))
 
     keras_model = get_keras_model(state)
-    FLAGS.use_fl = False
+
     if FLAGS.data == "cifar10":
       (train_images, train_labels), (test_images, test_labels) = tf.keras.datasets.cifar10.load_data()
       train_images, test_images = train_images / 255.0, test_images / 255.0
-    score = keras_model.evaluate(test_images, test_labels, verbose=0)
+      score = keras_model.evaluate(test_images, test_labels, verbose=0)
+    elif FLAGS.data in ("drd", "tbc"):
+      score = keras_model.evaluate(test_data, verbose=0)
+
     print("Test loss:", score[0])
     print("Test accuracy:", score[1])
 

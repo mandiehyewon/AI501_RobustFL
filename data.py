@@ -27,13 +27,15 @@ def get_data(FLAGS):
   elif FLAGS.data == "drd":
     assert FLAGS.num_samples >= FLAGS.batch_size
     train = [get_dataset_drd(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="train") for d in range(FLAGS.num_classes)]
-    test = [get_dataset_drd(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="val") for d in range(FLAGS.num_classes)]
+    # test = [get_dataset_drd(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="val") for d in range(FLAGS.num_classes)]
+    test = get_dataset_drd(None, 1, FLAGS.batch_size, 5*FLAGS.num_samples, split="val")
   elif FLAGS.data == "tbc":
     assert FLAGS.num_samples >= FLAGS.batch_size
     train_m, test_m = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, center="MontgomerySet")
     train_c, test_c = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, center="ChinaSet_AllFiles")
     train = [train_m, train_c]
-    test = [test_m, test_c]
+    # test = [test_m, test_c]
+    test = test_m.concatenate(test_c)
 
   if FLAGS.data not in ("drd", "tbc"):
     if FLAGS.use_fl:

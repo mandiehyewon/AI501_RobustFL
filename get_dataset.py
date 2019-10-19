@@ -174,6 +174,7 @@ def get_dataset_tbc(
     train_ds = train_ds.repeat(total_epoch_train)
     train_ds = train_ds.prefetch(1)
 
+    _img_size = img_size
     val_ds = tf.data.Dataset.from_tensor_slices(val_data_list)
     val_ds = val_ds.map(load_img, tf.data.experimental.AUTOTUNE)
     val_ds = val_ds.batch(batch_size, drop_remainder=True)
