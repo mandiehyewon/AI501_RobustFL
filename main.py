@@ -50,15 +50,17 @@ FLAGS = app.flags.FLAGS
 
 def main(argv):
   tf.compat.v1.enable_v2_behavior()
+
   # For high-performance executor stack
   if six.PY3:
     tff.framework.set_default_executor(tff.framework.create_local_executor())
 
   train_data, test_data = get_data(FLAGS)
   if FLAGS.use_fl:
-    if FLAGS.data == "drd":
-      for x,y in train_data[0].take(1):
-        sample_batch = {'x':x.numpy(), 'y':y.numpy()}
+    if FLAGS.data in ("drd", "tbc"):
+      for x, y in train_data[0].take(1):
+        sample_batch = {'x': x.numpy(), 'y': y.numpy()}
+
     else:
       sample_batch = train_data[0][-1]
 

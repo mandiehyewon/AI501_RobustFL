@@ -6,7 +6,7 @@ import tensorflow as tf
 # Each image's dimension is 28 x 28
 raw_img_rows, raw_img_cols = 28, 28
 img_channels = 3
-min_img_rows, min_img_cols = 512, 512
+min_img_rows, min_img_cols = 224, 224
 img_rows = max(min_img_rows, raw_img_rows)
 img_cols = max(min_img_cols, raw_img_cols)
 input_shape = (img_rows, img_cols, img_channels)

@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from get_dataset import get_dataset
+from get_dataset import get_dataset_drd, get_dataset_tbc
 
 def get_data_for_fl(FLAGS, source, digit):
   output_sequence = []
@@ -25,10 +25,17 @@ def get_data(FLAGS):
     train, test = tf.keras.datasets.cifar10.load_data()
     FLAGS.num_classes = 10
   elif FLAGS.data == "drd":
-    train = [get_dataset(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="train") for d in range(FLAGS.num_classes)]
-    test = [get_dataset(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="val") for d in range(FLAGS.num_classes)]
+    assert FLAGS.num_samples >= FLAGS.batch_size
+    train = [get_dataset_drd(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="train") for d in range(FLAGS.num_classes)]
+    test = [get_dataset_drd(d, FLAGS.n_epochs, FLAGS.batch_size, FLAGS.num_samples, split="val") for d in range(FLAGS.num_classes)]
+  elif FLAGS.data == "tbc":
+    assert FLAGS.num_samples >= FLAGS.batch_size
+    train_m, test_m = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, center="MontgomerySet")
+    train_c, test_c = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, center="ChinaSet_AllFiles")
+    train = [train_m, train_c]
+    test = [test_m, test_c]
 
-  if FLAGS.data != "drd":
+  if FLAGS.data not in ("drd", "tbc"):
     if FLAGS.use_fl:
       train = [get_data_for_fl(FLAGS, train, d) for d in range(FLAGS.num_classes)]
       test = [get_data_for_fl(FLAGS, test, d) for d in range(FLAGS.num_classes)]
