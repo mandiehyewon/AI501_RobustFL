@@ -50,10 +50,14 @@ FLAGS = app.flags.FLAGS
 
 
 #model = get_model()
-def save_model(tff_model, path, name):
-    _model = get_model(FLAGS)
-    tff.learning.assign_weights_to_keras_model(_model, tff_model)
-    _model.save(path + "/" + name + ".h5")
+def save_model(state, path, name):
+  _model = get_keras_model(state)
+  _model.save(path + "/" + name + ".h5")
+
+def get_keras_model(state):
+  keras_model = get_model(FLAGS)
+  tff.learning.assign_weights_to_keras_model(keras_model, state.model)
+  return keras_model
 
 def main(argv):
   tf.compat.v1.enable_v2_behavior()
@@ -92,15 +96,24 @@ def main(argv):
     def model_fn():
         model = get_model(FLAGS)
         return tff.learning.from_compiled_keras_model(model, sample_batch)
-    iterative_process = tff.learning.build_federated_averaging_process(model_fn)
-    state = iterative_process.initialize()
+    fed_avg = tff.learning.build_federated_averaging_process(model_fn)
+    state = fed_avg.initialize()
 
     print("Round starts!")
     start_time = datetime.now()
     for round_num in range(1, FLAGS.num_rounds + 1):
-        state, metrics = iterative_process.next(state, train_data)
+        state, metrics = fed_avg.next(state, train_data)
         print('round {:2d}, metrics={} Elasped time: {}'.format(round_num, metrics, datetime.now()-start_time))
-        save_model(state.model, result_dir, "round_{}".format(round_num))
+        save_model(state, result_dir, "round_{}".format(round_num))
+
+    keras_model = get_keras_model(state)
+    FLAGS.use_fl = False
+    if FLAGS.data == "cifar10":
+      (train_images, train_labels), (test_images, test_labels) = tf.keras.datasets.cifar10.load_data()
+      train_images, test_images = train_images / 255.0, test_images / 255.0
+    score = keras_model.evaluate(test_images, test_labels, verbose=0)
+    print("Test loss:", score[0])
+    print("Test accuracy:", score[1])
 
 if __name__ == '__main__':
     app.run(main)
