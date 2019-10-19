@@ -13,6 +13,8 @@ from datetime import datetime
 import six
 import shutil
 import os
+from art.classifiers import TensorFlowV2Classifier
+from art.attacks import FastGradientMethod, CarliniLInfMethod
 
 flags.DEFINE_string("eval_mode", "train", "Which evaluation mode")
 flags.DEFINE_integer("gpuid", 0, "Which gpu id to use")
@@ -36,7 +38,7 @@ flags.DEFINE_integer("seed", None, "Random seed.")
 flags.DEFINE_boolean("use_fl", True, "Use federated learning or not")
 
 # Attack flags
-flags.DEFINE_string("attack", "pgd", "Which attack to use.")
+flags.DEFINE_boolean("attack", True, "Attack to use.")
 flags.DEFINE_string("attack_source", "base", "Source model for attack.")
 flags.DEFINE_string("attack_ord", "inf", "L_inf/ L_2.")
 flags.DEFINE_integer("pgd_steps", 40, "No of pgd steps")
@@ -114,6 +116,18 @@ def main(argv):
     score = keras_model.evaluate(test_images, test_labels, verbose=0)
     print("Test loss:", score[0])
     print("Test accuracy:", score[1])
+
+    if FLAGS.attack:
+      loss_object = tf.keras.losses.SparseCategoricalCrossentropy()
+      classifier = TensorFlowV2Classifier(model=keras_model, nb_classes=10, loss_object=loss_object, clip_values=(0, 1), 
+                                        channel_index=3)
+      attack_fgsm = FastGradientMethod(classifier=classifier)
+      x_test_adv = attack_fgsm.generate(test_images)
+
+      score = keras_model.evaluate(x_test_adv, test_labels, verbose=0)
+      print("Adversarial loss:", score[0])
+      print("Adversarial accuracy:", score[1])
+
 
 if __name__ == '__main__':
     app.run(main)

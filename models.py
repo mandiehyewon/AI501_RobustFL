@@ -4,7 +4,7 @@ import tensorflow as tf
 # others works in image size 32x32
 
 # Each image's dimension is 28 x 28
-raw_img_rows, raw_img_cols = 28, 28
+raw_img_rows, raw_img_cols = 32, 32
 img_channels = 3
 min_img_rows, min_img_cols = 224, 224
 img_rows = max(min_img_rows, raw_img_rows)
