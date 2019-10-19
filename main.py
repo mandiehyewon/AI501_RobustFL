@@ -1,6 +1,6 @@
 import os
 os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
-os.environ['CUDA_VISIBLE_DEVICES'] = "-1"
+#os.environ['CUDA_VISIBLE_DEVICES'] = ""
 import tensorflow as tf
 #physical_devices = tf.config.experimental.list_physical_devices('GPU')
 #tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')
@@ -11,6 +11,8 @@ from absl import app
 from absl import flags
 from datetime import datetime
 import six
+import shutil
+import os
 
 flags.DEFINE_string("eval_mode", "train", "Which evaluation mode")
 flags.DEFINE_integer("gpuid", 0, "Which gpu id to use")
@@ -20,6 +22,7 @@ flags.DEFINE_string("net", "lenet_fc", "Which net to use.")
 flags.DEFINE_string("mode", "base", "Which mode to use.")
 flags.DEFINE_string("cnn_type", "vgg19", "Which mode to use.")
 flags.DEFINE_string("data", "drd", "Which dataset to use.")
+flags.DEFINE_string("exp_name", None, "Name of experiment")
 flags.DEFINE_integer("batch_size", 15, "Batch size")
 flags.DEFINE_integer("num_samples", 600, "# of samples (per class) used in training")
 flags.DEFINE_integer("num_rounds", 50, "# of rounds in federated learning")
@@ -47,6 +50,10 @@ FLAGS = app.flags.FLAGS
 
 
 #model = get_model()
+def save_model(tff_model, path, name):
+    _model = get_model(FLAGS)
+    tff.learning.assign_weights_to_keras_model(_model, tff_model)
+    _model.save(path + "/" + name + ".h5")
 
 def main(argv):
   tf.compat.v1.enable_v2_behavior()
@@ -55,12 +62,30 @@ def main(argv):
   if six.PY3:
     tff.framework.set_default_executor(tff.framework.create_local_executor())
 
+  # Backup current sources to experiment source folder
+  exp_dir = os.path.join("experiments", FLAGS.exp_name + "_" + str(datetime.now()))
+  result_dir = os.path.join(exp_dir, "result")
+  os.makedirs(exp_dir, exist_ok=True)
+  os.makedirs(result_dir, exist_ok=True)
+  shutil.copytree(
+    os.path.abspath(os.path.curdir),
+    os.path.join(exp_dir, "source"),
+    ignore=lambda src, names: {
+      "datasets",
+      ".vscode",
+      "__pycache__",
+      ".git",
+      "*.png",
+      "env",
+      "experiments",
+    }
+  )
+
   train_data, test_data = get_data(FLAGS)
   if FLAGS.use_fl:
     if FLAGS.data in ("drd", "tbc"):
       for x, y in train_data[0].take(1):
         sample_batch = {'x': x.numpy(), 'y': y.numpy()}
-
     else:
       sample_batch = train_data[0][-1]
 
@@ -69,12 +94,13 @@ def main(argv):
         return tff.learning.from_compiled_keras_model(model, sample_batch)
     iterative_process = tff.learning.build_federated_averaging_process(model_fn)
     state = iterative_process.initialize()
+
     print("Round starts!")
     start_time = datetime.now()
     for round_num in range(1, FLAGS.num_rounds + 1):
         state, metrics = iterative_process.next(state, train_data)
         print('round {:2d}, metrics={} Elasped time: {}'.format(round_num, metrics, datetime.now()-start_time))
-
+        save_model(state.model, result_dir, "round_{}".format(round_num))
 
 if __name__ == '__main__':
     app.run(main)
