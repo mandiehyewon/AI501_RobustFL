@@ -85,6 +85,7 @@ def get_dataset_tbc(
     total_epoch_val,
     batch_size,
     num_samples,
+    num_division=1,
     img_size=224,
     center="MontgomerySet",  # ChinaSet_AllFiles
     dataset_path="/st2/hyewon/dataset/TBc",
@@ -148,7 +149,6 @@ def get_dataset_tbc(
             val_data_list = data_list_0[num_samples_class:num_samples_class + num_val_class] \
                 + data_list_1[num_samples_class:num_samples_class + num_val_class]
             tot_data_list = data_list_0 + data_list_1
-
         else:
             tot_data_list = glob("{}/**/CXR_png/*.png".format(dataset_path))
             num_val = int(len(tot_data_list) * val_portion)
@@ -166,13 +166,17 @@ def get_dataset_tbc(
             len(val_data_list),
         )
     )
-    train_ds = tf.data.Dataset.from_tensor_slices(train_data_list)
-    train_ds = train_ds.shuffle(len(train_data_list), reshuffle_each_iteration=True)
-    train_ds = train_ds.map(load_img, tf.data.experimental.AUTOTUNE)
-    train_ds = train_ds.map(augment_img, tf.data.experimental.AUTOTUNE)
-    train_ds = train_ds.batch(batch_size, drop_remainder=True)
-    train_ds = train_ds.repeat(total_epoch_train)
-    train_ds = train_ds.prefetch(1)
+    train_ds = []
+    num_samples_div = (len(train_data_list)+num_division-1)//num_division
+    for i in range(0, len(train_data_list), num_samples_div):
+        ds = tf.data.Dataset.from_tensor_slices(train_data_list[i:i+num_samples_div])
+        ds = ds.shuffle(len(train_data_list[i:i+num_samples_div]), reshuffle_each_iteration=True)
+        ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
+        ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
+        ds = ds.batch(batch_size, drop_remainder=True)
+        ds = ds.repeat(total_epoch_train)
+        ds = ds.prefetch(1)
+        train_ds.append(ds)
 
     _img_size = img_size
     val_ds = tf.data.Dataset.from_tensor_slices(val_data_list)

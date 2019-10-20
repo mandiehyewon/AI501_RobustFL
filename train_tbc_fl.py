@@ -29,9 +29,10 @@ flags.DEFINE_string("mode", "base", "Which mode to use.")
 flags.DEFINE_string("cnn_type", "vgg19", "Which mode to use.")
 flags.DEFINE_string("data", "tbc", "Which dataset to use.")
 flags.DEFINE_string("exp_name", None, "Name of experiment")
-flags.DEFINE_integer("batch_size", 15, "Batch size")
+flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("num_samples", 600, "# of samples (per class) used in training")
 flags.DEFINE_integer("num_rounds", 5, "# of rounds in federated learning")
+flags.DEFINE_integer("num_div", 1, "# of division in china set")
 flags.DEFINE_integer("num_examples_per_user", 1000, "No of examples per user")
 flags.DEFINE_integer("num_classes", 5, "No of classes")
 flags.DEFINE_integer("save_freq", 20, "Saving frequency for model")
@@ -66,6 +67,25 @@ batch_size=32
 def main(argv):
     tf.compat.v1.enable_v2_behavior()
 
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    # Backup current sources to experiment source folder
+    exp_dir = os.path.join("experiments", FLAGS.exp_name + "_" + str(datetime.now()))
+    result_dir = os.path.join(exp_dir, "result")
+    os.makedirs(exp_dir, exist_ok=True)
+    os.makedirs(result_dir, exist_ok=True)
+    shutil.copytree(
+        os.path.abspath(os.path.curdir),
+        os.path.join(exp_dir, "source"),
+        ignore=lambda src, names: {
+        "datasets",
+        ".vscode",
+        "__pycache__",
+        ".git",
+        "*.png",
+        "env",
+        "experiments",
+        }
+    )
     if six.PY3:
         tff.framework.set_default_executor(tff.framework.create_local_executor())
     from glob import glob
@@ -78,7 +98,6 @@ def main(argv):
     cs_test = "{}/CS/test/".format(dataset_path)
 
     train_data, test_data = get_data(FLAGS)
-
     HEIGHT = 224
     WIDTH = 224
     CLASSES = 1
@@ -95,21 +114,25 @@ def main(argv):
       x = tf.keras.layers.Dropout(0.4)(x)
       predictions = tf.keras.layers.Dense(CLASSES, activation='sigmoid')(x)
       cnn = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)
-   
+
     # transfer learning
       for layer in base_model.layers:
         layer.trainable = False
-      
+
       cnn.compile(
-        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
+        loss=tf.keras.losses.BinaryCrossentropy("loss"),
         optimizer=tf.keras.optimizers.RMSprop(),
-        metrics=[tf.keras.metrics.Accuracy("acc")],)
+        metrics=[tf.keras.metrics.BinaryAccuracy("acc")],)
       return cnn
 
     def get_keras_model(state):
       keras_model = get_model()
       tff.learning.assign_weights_to_keras_model(keras_model, state.model)
       return keras_model
+
+    def save_model(state, path, name):
+      _model = get_keras_model(state)
+      _model.save(path + "/" + name + ".h5")
 
     EPOCHS = 5
     BATCH_SIZE = 32
@@ -126,6 +149,8 @@ def main(argv):
     state = fed_avg.initialize()
 
     print("Round starts!")
+    print(len(train_data))
+
     start_time = datetime.now()
     for round_num in range(1, FLAGS.num_rounds + 1):
       state, metrics = fed_avg.next(state, train_data)
@@ -197,7 +222,7 @@ def main(argv):
 
     # classification report
     predicted_classes = cnn.predict_classes(test_X)
-    
+
     correct = (predicted_classes == test_y).nonzero()[0]
     incorrect = (predicted_classes != test_y).nonzero()[0]
 
@@ -248,4 +273,4 @@ def main(argv):
     """
 
 if __name__ == "__main__":
-   app.run(main) 
+   app.run(main)

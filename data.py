@@ -32,8 +32,9 @@ def get_data(FLAGS):
   elif FLAGS.data == "tbc":
     assert FLAGS.num_samples >= FLAGS.batch_size
     train_m, test_m = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, center="MontgomerySet")
-    train_c, test_c = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, center="ChinaSet_AllFiles")
-    train = [train_m, train_c]
+    train_c, test_c = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, num_division=FLAGS.num_div, center="ChinaSet_AllFiles")
+    train = train_m + train_c
+    print(len(train_m), len(train_c))
     # test = [test_m, test_c]
     test = test_m.concatenate(test_c)
 
