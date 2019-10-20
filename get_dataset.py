@@ -187,6 +187,69 @@ def get_dataset_tbc(
 
     return train_ds, val_ds
 
+def get_dataset_tbc_for_single(
+    total_epoch,
+    batch_size,
+    files,
+    dataset_type="train",
+    img_size=224,
+    horizontal_flip=True,
+    vertical_flip=False,
+    random_brightness=True,
+    random_contrast=True,
+    random_saturation=True,
+    random_hue=True,
+    random_crop=True,
+    crop_rate=0.95,
+):
+   
+    if random_crop and dataset_type == "train":
+        # If use random crop, load image with larger size
+        _img_size = int(img_size / crop_rate)
+    else:
+        _img_size = img_size
+
+    def load_img(path):
+        img = tf.io.read_file(path)
+        img = tf.image.decode_jpeg(img, channels=3)
+        img = tf.image.convert_image_dtype(img, tf.float32)
+        img = tf.image.resize(img, (_img_size, _img_size))
+
+        # Paths are of format ...{label}.png
+        _path = tf.strings.substr(path, -5, 1)
+        label = tf.strings.to_number(_path)
+        return img, label
+
+    def augment_img(img, label):
+        if horizontal_flip:
+            img = tf.image.random_flip_left_right(img)
+        if vertical_flip:
+            img = tf.image.random_flip_up_down(img)
+        if random_brightness:
+            img = tf.image.random_brightness(img, max_delta=0.1)
+        if random_contrast:
+            img = tf.image.random_contrast(img, lower=0.75, upper=1.5)
+        if random_saturation:
+            img = tf.image.random_saturation(img, lower=0.75, upper=1.5)
+        if random_hue:
+            img = tf.image.random_hue(img, max_delta=0.15)
+        if random_crop:
+            img = tf.image.random_crop(img, (img_size, img_size, 3))
+        # Make sure the image is still in [0, 1]
+        img = tf.clip_by_value(img, 0.0, 1.0)
+        return img, label
+
+  
+    ds = tf.data.Dataset.from_tensor_slices(files)
+    ds = ds.shuffle(len(files), reshuffle_each_iteration=True)
+    ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
+    if dataset_type == "train":
+        ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
+    ds = ds.batch(batch_size)
+    ds = ds.repeat(-1)
+    ds = ds.prefetch(1)
+    return ds
+
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt

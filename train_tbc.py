@@ -19,7 +19,7 @@ from get_dataset import *
 # Each image's dimension is 28 x 28
 
 # configure
-experiment = "all3"
+experiment = "cs4"
 dataset_type = "tbc"
 cnn_type = "vgg19" # "cnn1","cnn3","cnn4","vgg16","vgg19","resnet50","inception_v3"
 
@@ -41,23 +41,32 @@ if __name__ == "__main__":
     cs_train = "{}/CS/train".format(dataset_path)
     cs_test = "{}/CS/test".format(dataset_path)
 
-    train = all_train
-    test = all_test
+    if "all" in experiment: 
+        train = all_train
+        test = all_test
+    elif "ms" in experiment:
+        train = ms_train
+        test = ms_test
+    elif "cs" in experiment:
+        train = cs_train
+        test = cs_test
+    
     train_files=glob("{}/**/*.png".format(train))
     test_files=glob("{}/**/*.png".format(test))
+    
     print(train, len(train_files))
     print(test, len(test_files))
 
-    train_ds = get_dataset_tbc(
+    train_ds = get_dataset_tbc_for_single(
         EPOCHS,
         BATCH_SIZE,
         train_files,
         dataset_type="train"
     )
     
-    test_ds = get_dataset_tbc(
+    test_ds = get_dataset_tbc_for_single(
         EPOCHS,
-        BATCH_SIZE,
+        len(test_files),
         test_files,
         dataset_type="test"
     )
@@ -141,7 +150,7 @@ if __name__ == "__main__":
         epochs=EPOCHS,
         steps_per_epoch=STEPS_PER_EPOCH,
         validation_data=test_ds,
-        validation_steps=len(test_files)//BATCH_SIZE,
+        validation_steps=1,
         callbacks=callbacks_list)
 
     """
@@ -158,7 +167,7 @@ if __name__ == "__main__":
     print()
 
     #score = cnn.evaluate_generator(val_generator, steps=1, verbose=1)
-    score = cnn.evaluate_generator(test_ds, steps=len(test_files)//BATCH_SIZE, verbose=1)
+    score = cnn.evaluate_generator(test_ds, steps=1, verbose=1)
     print()
     print('test loss:', score[0])
     print('test accuracy:', score[1])
