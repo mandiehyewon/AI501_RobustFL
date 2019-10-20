@@ -11,7 +11,7 @@ from glob import glob
 
 # configure
 ########################
-experiment = "cs_only"
+experiment = "all3"
 ########################
 dataset_type = "tbc"
 cnn_type = "vgg19" # "cnn1","cnn3","cnn4","vgg16","vgg19","resnet50","inception_v3"
@@ -20,6 +20,8 @@ HEIGHT = 224
 WIDTH = 224
 CLASSES = 2
 BATCH_SIZE = 32
+EPOCHS=5
+
 num_classes=2
 pretrained = "imagenet" 
 feature_extraction = False
@@ -33,11 +35,12 @@ cs_train = "{}/CS/train".format(dataset_path)
 cs_test = "{}/CS/test".format(dataset_path)
 mscs_test = "{}/MSCS/test".format(dataset_path)
 #############################################
-test = cs_test
+test = mscs_test
 num_files = glob("{}/**/*.png".format(test))
+test_files=glob("{}/**/*.png".format(test))
 ############################################
 print(len(num_files))
-
+"""
 test_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
     preprocessing_function=tf.keras.applications.vgg19.preprocess_input,
     rotation_range=40,
@@ -53,7 +56,13 @@ test_generator = test_datagen.flow_from_directory(
     target_size=(HEIGHT, WIDTH),
         batch_size=BATCH_SIZE,
         class_mode='categorical')
-
+"""
+test_ds = get_dataset_tbc(
+    EPOCHS,
+    len(test_files),
+    test_files,
+    dataset_type="test"
+)
 model = tf.keras.models.load_model('{}_{}_{}_{}_{}_img{}x{}.h5'.format(
         experiment, cnn_type, pretrained, feature_extraction, dataset_type, HEIGHT, WIDTH
 ))
@@ -63,11 +72,10 @@ test_y = []
 eval_X = []
 eval_y = []
 
-for i in range(len(num_files)//BATCH_SIZE+1):
-  x,y = next(test_generator)
+for x,y in test_ds.take(1):
   predict = model.predict(x)
   predict_classes.append(np.argmax(predict, axis=-1))
-  test_y.append(np.argmax(y, axis=-1))
+  test_y.append(y)
   eval_X.append(x)
   eval_y.append(y)
 
