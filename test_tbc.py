@@ -10,7 +10,9 @@ from get_dataset import *
 from glob import glob
 
 # configure
-experiment = "all"
+########################
+experiment = "cs_only"
+########################
 dataset_type = "tbc"
 cnn_type = "vgg19" # "cnn1","cnn3","cnn4","vgg16","vgg19","resnet50","inception_v3"
 #random_seed = 42
@@ -23,15 +25,18 @@ pretrained = "imagenet"
 feature_extraction = False
 
 dataset_path = "/st2/myung/data/TBc"
-all_train = "{}/ALL/train/".format(dataset_path)
-all_test = "{}/ALL/test/".format(dataset_path)
-ms_train = "{}/MS/train/".format(dataset_path)
-ms_test = "{}/MS/test/".format(dataset_path)
-cs_train = "{}/CS/train/".format(dataset_path)
-cs_test = "{}/CS/test/".format(dataset_path)
-cs_test_files = "{}/CS/test/**/*.png".format(dataset_path)
-
-#test_X, test_y = get_tbc_Xy(glob(cs_test_files))
+all_train = "{}/ALL/train".format(dataset_path)
+all_test = "{}/ALL/test".format(dataset_path)
+ms_train = "{}/MS/train".format(dataset_path)
+ms_test = "{}/MS/test".format(dataset_path)
+cs_train = "{}/CS/train".format(dataset_path)
+cs_test = "{}/CS/test".format(dataset_path)
+mscs_test = "{}/MSCS/test".format(dataset_path)
+#############################################
+test = cs_test
+num_files = glob("{}/**/*.png".format(test))
+############################################
+print(len(num_files))
 
 test_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
     preprocessing_function=tf.keras.applications.vgg19.preprocess_input,
@@ -44,7 +49,7 @@ test_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
     fill_mode='nearest')
 
 test_generator = test_datagen.flow_from_directory(
-    all_test,
+    test, ##Ch
     target_size=(HEIGHT, WIDTH),
         batch_size=BATCH_SIZE,
         class_mode='categorical')
@@ -57,7 +62,8 @@ predict_classes = []
 test_y = []
 eval_X = []
 eval_y = []
-for i in range(len(cs_test_files)//BATCH_SIZE+2):
+
+for i in range(len(num_files)//BATCH_SIZE+1):
   x,y = next(test_generator)
   predict = model.predict(x)
   predict_classes.append(np.argmax(predict, axis=-1))
