@@ -65,6 +65,9 @@ batch_size=32
 
 def main(argv):
     tf.compat.v1.enable_v2_behavior()
+
+    if six.PY3:
+        tff.framework.set_default_executor(tff.framework.create_local_executor())
     from glob import glob
     dataset_path = "/st2/myung/data/TBc"
     all_train = "{}/ALL/train/".format(dataset_path)
