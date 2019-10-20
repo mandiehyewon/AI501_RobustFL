@@ -173,7 +173,7 @@ def get_dataset_tbc(
         ds = ds.shuffle(len(train_data_list[i:i+num_samples_div]), reshuffle_each_iteration=True)
         ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
         ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
-        ds = ds.batch(batch_size, drop_remainder=True)
+        ds = ds.batch(batch_size)
         ds = ds.repeat(total_epoch_train)
         ds = ds.prefetch(1)
         train_ds.append(ds)
@@ -181,7 +181,7 @@ def get_dataset_tbc(
     _img_size = img_size
     val_ds = tf.data.Dataset.from_tensor_slices(val_data_list)
     val_ds = val_ds.map(load_img, tf.data.experimental.AUTOTUNE)
-    val_ds = val_ds.batch(batch_size, drop_remainder=True)
+    val_ds = val_ds.batch(batch_size)
     val_ds = val_ds.repeat(total_epoch_val)
     val_ds = val_ds.prefetch(1)
 
