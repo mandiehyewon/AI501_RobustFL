@@ -31,11 +31,11 @@ flags.DEFINE_string("data", "tbc", "Which dataset to use.")
 flags.DEFINE_string("exp_name", None, "Name of experiment")
 flags.DEFINE_integer("batch_size", 15, "Batch size")
 flags.DEFINE_integer("num_samples", 600, "# of samples (per class) used in training")
-flags.DEFINE_integer("num_rounds", 50, "# of rounds in federated learning")
+flags.DEFINE_integer("num_rounds", 5, "# of rounds in federated learning")
 flags.DEFINE_integer("num_examples_per_user", 1000, "No of examples per user")
 flags.DEFINE_integer("num_classes", 5, "No of classes")
 flags.DEFINE_integer("save_freq", 20, "Saving frequency for model")
-flags.DEFINE_integer("n_epochs", 200, "No of epochs")
+flags.DEFINE_integer("n_epochs", 1, "No of epochs")
 flags.DEFINE_integer("directory", None, "Train directory")
 
 flags.DEFINE_integer("seed", None, "Random seed.")
@@ -78,7 +78,7 @@ def main(argv):
 
     HEIGHT = 224
     WIDTH = 224
-    CLASSES = 2
+    CLASSES = 1
     BATCH_SIZE = 32
 
     def get_model():
@@ -90,7 +90,7 @@ def main(argv):
       x = tf.keras.layers.Flatten()(x)
       x = tf.keras.layers.Dense(512, activation='relu')(x)
       x = tf.keras.layers.Dropout(0.4)(x)
-      predictions = tf.keras.layers.Dense(CLASSES, activation='softmax')(x)
+      predictions = tf.keras.layers.Dense(CLASSES, activation='sigmoid')(x)
       cnn = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)
    
     # transfer learning
@@ -98,7 +98,7 @@ def main(argv):
         layer.trainable = False
       
       cnn.compile(
-        loss=tf.keras.losses.BinaryCrossentropy("loss"),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.RMSprop(),
         metrics=[tf.keras.metrics.Accuracy("acc")],)
       return cnn
