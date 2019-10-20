@@ -1,6 +1,6 @@
 import tensorflow as tf
 from glob import glob
-
+import numpy as np
 
 def get_dataset_drd(
     target_class,
@@ -85,7 +85,6 @@ def get_dataset_tbc(
     total_epoch_val,
     batch_size,
     num_samples,
-    num_division=1,
     img_size=224,
     center="MontgomerySet",  # ChinaSet_AllFiles
     dataset_path="/st2/hyewon/dataset/TBc",
@@ -149,6 +148,7 @@ def get_dataset_tbc(
             val_data_list = data_list_0[num_samples_class:num_samples_class + num_val_class] \
                 + data_list_1[num_samples_class:num_samples_class + num_val_class]
             tot_data_list = data_list_0 + data_list_1
+
         else:
             tot_data_list = glob("{}/**/CXR_png/*.png".format(dataset_path))
             num_val = int(len(tot_data_list) * val_portion)
@@ -166,19 +166,14 @@ def get_dataset_tbc(
             len(val_data_list),
         )
     )
-    train_ds = []
-    num_samples_div = (len(train_data_list)+num_division-1)//num_division
-    for i in range(0, len(train_data_list), num_samples_div):
-        ds = tf.data.Dataset.from_tensor_slices(train_data_list[i:i+num_samples_div])
-        ds = ds.shuffle(len(train_data_list[i:i+num_samples_div]), reshuffle_each_iteration=True)
-        ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
-        ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
-        ds = ds.batch(batch_size, drop_remainder=True)
-        ds = ds.repeat(total_epoch_train)
-        ds = ds.prefetch(1)
-        train_ds.append(ds)
+    train_ds = tf.data.Dataset.from_tensor_slices(train_data_list)
+    train_ds = train_ds.shuffle(len(train_data_list), reshuffle_each_iteration=True)
+    train_ds = train_ds.map(load_img, tf.data.experimental.AUTOTUNE)
+    train_ds = train_ds.map(augment_img, tf.data.experimental.AUTOTUNE)
+    train_ds = train_ds.batch(batch_size, drop_remainder=True)
+    train_ds = train_ds.repeat(total_epoch_train)
+    train_ds = train_ds.prefetch(1)
 
-    _img_size = img_size
     val_ds = tf.data.Dataset.from_tensor_slices(val_data_list)
     val_ds = val_ds.map(load_img, tf.data.experimental.AUTOTUNE)
     val_ds = val_ds.batch(batch_size, drop_remainder=True)
@@ -187,6 +182,71 @@ def get_dataset_tbc(
 
     return train_ds, val_ds
 
+def get_dataset_tbc(
+    total_epoch,
+    batch_size,
+    files,
+    dataset_type="train",
+    img_size=224,
+    horizontal_flip=True,
+    vertical_flip=False,
+    random_brightness=True,
+    random_contrast=True,
+    random_saturation=True,
+    random_hue=True,
+    random_crop=True,
+    crop_rate=0.95,
+):
+    """Params:
+
+    """
+    if random_crop and dataset_type == "train":
+        # If use random crop, load image with larger size
+        _img_size = int(img_size / crop_rate)
+    else:
+        _img_size = img_size
+
+    def load_img(path):
+        img = tf.io.read_file(path)
+        img = tf.image.decode_jpeg(img, channels=3)
+        img = tf.image.convert_image_dtype(img, tf.float32)
+        img = tf.image.resize(img, (_img_size, _img_size))
+
+        # Paths are of format ...{label}.png
+        _path = tf.strings.substr(path, -5, 1)
+        label = tf.strings.to_number(_path)
+        return img, label
+
+    def augment_img(img, label):
+        if horizontal_flip:
+            img = tf.image.random_flip_left_right(img)
+        if vertical_flip:
+            img = tf.image.random_flip_up_down(img)
+        if random_brightness:
+            img = tf.image.random_brightness(img, max_delta=0.1)
+        if random_contrast:
+            img = tf.image.random_contrast(img, lower=0.75, upper=1.5)
+        if random_saturation:
+            img = tf.image.random_saturation(img, lower=0.75, upper=1.5)
+        if random_hue:
+            img = tf.image.random_hue(img, max_delta=0.15)
+        if random_crop:
+            img = tf.image.random_crop(img, (img_size, img_size, 3))
+        # Make sure the image is still in [0, 1]
+        img = tf.clip_by_value(img, 0.0, 1.0)
+        return img, label
+
+  
+    ds = tf.data.Dataset.from_tensor_slices(files)
+    ds = ds.shuffle(len(files), reshuffle_each_iteration=True)
+    ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
+    if dataset_type == "train":
+        ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
+    ds = ds.batch(batch_size, drop_remainder=True)
+    ds = ds.repeat()
+    ds = ds.prefetch(1)
+    
+    return ds
 
 
 if __name__ == "__main__":

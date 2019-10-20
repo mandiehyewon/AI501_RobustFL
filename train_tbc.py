@@ -15,41 +15,54 @@ from get_dataset import *
 
 # Each image's dimension is 28 x 28
 
+
+# Each image's dimension is 28 x 28
+
 # configure
-experiment = "all"
+experiment = "all3"
 dataset_type = "tbc"
 cnn_type = "vgg19" # "cnn1","cnn3","cnn4","vgg16","vgg19","resnet50","inception_v3"
-#random_seed = 42
-total_epoch=5
-batch_size=32
 
+HEIGHT = 224
+WIDTH = 224
+CLASSES = 2
+BATCH_SIZE = 32
+EPOCHS=5
+STEPS_PER_EPOCH = 200
 
 
 if __name__ == "__main__":
     from glob import glob
     dataset_path = "/st2/myung/data/TBc"
-    all_train = "{}/ALL/train/".format(dataset_path)
-    all_test = "{}/ALL/test/".format(dataset_path)
-    ms_train = "{}/MS/train/".format(dataset_path)
-    ms_test = "{}/MS/test/".format(dataset_path)
-    cs_train = "{}/CS/train/".format(dataset_path)
-    cs_test = "{}/CS/test/".format(dataset_path)
+    all_train = "{}/MSCS/train".format(dataset_path)
+    all_test = "{}/MSCS/test".format(dataset_path)
+    ms_train = "{}/MS/train".format(dataset_path)
+    ms_test = "{}/MS/test".format(dataset_path)
+    cs_train = "{}/CS/train".format(dataset_path)
+    cs_test = "{}/CS/test".format(dataset_path)
 
     train = all_train
     test = all_test
-    #train_X, train_y = get_tbc_Xy(train, file_type="train")
-    #val_X, val_y = get_tbc_Xy(test, file_type="test")
+    train_files=glob("{}/**/*.png".format(train))
+    test_files=glob("{}/**/*.png".format(test))
+    print(train, len(train_files))
+    print(test, len(test_files))
 
-    print(train)
-    print(test)
-
-    #test_X, test_y = get_tbc_Xy(test, file_type="test")
-    HEIGHT = 224
-    WIDTH = 224
-    CLASSES = 2
-    BATCH_SIZE = 32
-
+    train_ds = get_dataset_tbc(
+        EPOCHS,
+        BATCH_SIZE,
+        train_files,
+        dataset_type="train"
+    )
+    
+    test_ds = get_dataset_tbc(
+        EPOCHS,
+        BATCH_SIZE,
+        test_files,
+        dataset_type="test"
+    )
     # data prep
+    """
     train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
         preprocessing_function=tf.keras.applications.vgg19.preprocess_input,
         rotation_range=40,
@@ -71,13 +84,6 @@ if __name__ == "__main__":
         horizontal_flip=True,
         fill_mode='nearest')
 
-    #train_datagen.fit(train_X)
-    #val_datagen.fit(val_X)
-
-    #train_flow = train_datagen.flow(train_X, train_y,
-    #                               batch_size=BATCH_SIZE)
-    #val_flow = val_datagen.flow(val_X, val_y,
-    #                                batch_size=BATCH_SIZE)
 
     train_generator = train_datagen.flow_from_directory(
         train,
@@ -90,16 +96,16 @@ if __name__ == "__main__":
         target_size=(HEIGHT, WIDTH),
         batch_size=BATCH_SIZE,
         class_mode='categorical')
-
+    """
 
     base_model = tf.keras.applications.VGG19(weights='imagenet',
                       include_top=False,
                       input_shape=(HEIGHT, WIDTH, 3))
 
     x = base_model.output
-    x = tf.keras.layers.Flatten()(x)
-    x = tf.keras.layers.Dense(512, activation='relu')(x)
+    x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.Dropout(0.4)(x)
+    x = tf.keras.layers.Dense(128, activation='relu')(x)
     predictions = tf.keras.layers.Dense(CLASSES, activation='softmax')(x)
     cnn = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)
    
@@ -108,24 +114,12 @@ if __name__ == "__main__":
         layer.trainable = False
       
     cnn.compile(
-        loss=tf.keras.losses.BinaryCrossentropy("loss"),
-        optimizer=tf.keras.optimizers.RMSprop(),
-        metrics=[tf.keras.metrics.Accuracy("acc")],
+        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
+        optimizer=tf.keras.optimizers.Adam(),
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")],
     )
 
-    EPOCHS = 5
-    BATCH_SIZE = 32
-    STEPS_PER_EPOCH = 320
-
-
-    result = cnn.fit_generator(
-        train_generator,
-        verbose=1,
-        epochs=EPOCHS,
-        steps_per_epoch=STEPS_PER_EPOCH,
-        validation_data=val_generator)
-    
-
+    print(cnn.summary())
 
     #weight_path="{}_{}_{}_{}_{}_weights.best.hdf5".format(
     #    experiment, cnn_type, pretrained, feature_extraction, 'tbc'
@@ -134,18 +128,40 @@ if __name__ == "__main__":
     #checkpoint = tf.keras.callbacks.ModelCheckpoint(weight_path, monitor='loss', verbose=1,
     #                            save_best_only=True, mode='min', save_weights_only = True)
 
-    #reduceLROnPlat = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.8, patience=3, verbose=1, mode='auto', epsilon=0.0001, cooldown=5, min_lr=0.0001)
+    reduceLROnPlat = tf.keras.callbacks.ReduceLROnPlateau(
+                        monitor='loss', factor=0.8, patience=3, verbose=1, 
+                        mode='auto', min_delta=0.0001, cooldown=5, min_lr=0.0001
+    )
 
-    #callbacks_list = [checkpoint]
+    callbacks_list = [reduceLROnPlat]
+
+    result = cnn.fit_generator(
+        train_ds,
+        verbose=1,
+        epochs=EPOCHS,
+        steps_per_epoch=STEPS_PER_EPOCH,
+        validation_data=test_ds,
+        validation_steps=len(test_files)//BATCH_SIZE,
+        callbacks=callbacks_list)
+
+    """
+    result = cnn.fit_generator(
+        train_generator,
+        verbose=1,
+        epochs=EPOCHS,
+        steps_per_epoch=STEPS_PER_EPOCH,
+        validation_data=val_generator)
+    """
 
     # training the model
       
     print()
 
-    score = cnn.evaluate_generator(val_generator, steps=1, verbose=1)
+    #score = cnn.evaluate_generator(val_generator, steps=1, verbose=1)
+    score = cnn.evaluate_generator(test_ds, steps=len(test_files)//BATCH_SIZE, verbose=1)
     print()
-    print('val loss:', score[0])
-    print('val accuracy:', score[1])
+    print('test loss:', score[0])
+    print('test accuracy:', score[1])
     cnn.save('{}_{}_{}_{}_{}_img{}x{}.h5'.format(
         experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
     ))
