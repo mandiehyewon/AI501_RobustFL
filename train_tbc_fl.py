@@ -27,7 +27,7 @@ flags.DEFINE_integer("gpuid", 0, "Which gpu id to use")
 flags.DEFINE_string("net", "lenet_fc", "Which net to use.")
 flags.DEFINE_string("mode", "base", "Which mode to use.")
 flags.DEFINE_string("cnn_type", "vgg19", "Which mode to use.")
-flags.DEFINE_string("data", "drd", "Which dataset to use.")
+flags.DEFINE_string("data", "tbc", "Which dataset to use.")
 flags.DEFINE_string("exp_name", None, "Name of experiment")
 flags.DEFINE_integer("batch_size", 15, "Batch size")
 flags.DEFINE_integer("num_samples", 600, "# of samples (per class) used in training")
@@ -64,6 +64,7 @@ batch_size=32
 
 
 def main(argv):
+    tf.compat.v1.enable_v2_behavior()
     from glob import glob
     dataset_path = "/st2/myung/data/TBc"
     all_train = "{}/ALL/train/".format(dataset_path)
@@ -99,9 +100,8 @@ def main(argv):
       cnn.compile(
         loss=tf.keras.losses.BinaryCrossentropy("loss"),
         optimizer=tf.keras.optimizers.RMSprop(),
-        metrics=[tf.keras.metrics.Accuracy("acc")],
-     )
-     return cnn
+        metrics=[tf.keras.metrics.Accuracy("acc")],)
+      return cnn
 
     def get_keras_model(state):
       keras_model = get_model()
@@ -112,12 +112,11 @@ def main(argv):
     BATCH_SIZE = 32
     STEPS_PER_EPOCH = 320
 
-    cnn = get_model()
-    
     for x, y in train_data[0].take(1):
       sample_batch = {'x': x.numpy(), 'y': y.numpy()}
 
     def model_fn():
+      cnn = get_model()
       return tff.learning.from_compiled_keras_model(cnn, sample_batch)
 
     fed_avg = tff.learning.build_federated_averaging_process(model_fn)
