@@ -63,8 +63,7 @@ total_epoch=5
 batch_size=32
 
 
-
-if __name__ == "__main__":
+def main(argv):
     from glob import glob
     dataset_path = "/st2/myung/data/TBc"
     all_train = "{}/ALL/train/".format(dataset_path)
@@ -245,3 +244,6 @@ if __name__ == "__main__":
     )
     plt.close()
     """
+
+if __name__ == "__main__":
+   app.run(main) 
