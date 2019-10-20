@@ -90,8 +90,8 @@ def main(argv):
         tff.framework.set_default_executor(tff.framework.create_local_executor())
     from glob import glob
     dataset_path = "/st2/myung/data/TBc"
-    all_train = "{}/ALL/train/".format(dataset_path)
-    all_test = "{}/ALL/test/".format(dataset_path)
+    all_train = "{}/MSCS/train/".format(dataset_path)
+    all_test = "{}/MSCS/test/".format(dataset_path)
     ms_train = "{}/MS/train/".format(dataset_path)
     ms_test = "{}/MS/test/".format(dataset_path)
     cs_train = "{}/CS/train/".format(dataset_path)
@@ -109,8 +109,8 @@ def main(argv):
                       input_shape=(HEIGHT, WIDTH, 3))
 
       x = base_model.output
-      x = tf.keras.layers.Flatten()(x)
-      x = tf.keras.layers.Dense(512, activation='relu')(x)
+      x = tf.keras.layers.GlobalAveragePooling2D()(x)
+      x = tf.keras.layers.Dense(128, activation='relu')(x)
       x = tf.keras.layers.Dropout(0.4)(x)
       predictions = tf.keras.layers.Dense(CLASSES, activation='sigmoid')(x)
       cnn = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)

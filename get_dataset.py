@@ -1,6 +1,6 @@
 import tensorflow as tf
 from glob import glob
-
+import numpy as np
 
 def get_dataset_drd(
     target_class,
@@ -149,6 +149,7 @@ def get_dataset_tbc(
             val_data_list = data_list_0[num_samples_class:num_samples_class + num_val_class] \
                 + data_list_1[num_samples_class:num_samples_class + num_val_class]
             tot_data_list = data_list_0 + data_list_1
+
         else:
             tot_data_list = glob("{}/**/CXR_png/*.png".format(dataset_path))
             num_val = int(len(tot_data_list) * val_portion)
@@ -166,6 +167,7 @@ def get_dataset_tbc(
             len(val_data_list),
         )
     )
+
     train_ds = []
     num_samples_div = (len(train_data_list)+num_division-1)//num_division
     for i in range(0, len(train_data_list), num_samples_div):
@@ -186,7 +188,6 @@ def get_dataset_tbc(
     val_ds = val_ds.prefetch(1)
 
     return train_ds, val_ds
-
 
 
 if __name__ == "__main__":
