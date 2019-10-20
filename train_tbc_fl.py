@@ -8,12 +8,51 @@ import matplotlib.pyplot as plt
 import os
 from models import *
 from get_dataset import *
-# inception_v3 : image size needs to be at least 75x75
-# others works in image size 32x32
+from data import get_data
+from models import get_model
+import tensorflow_federated as tff
+from absl import app
+from absl import flags
+from datetime import datetime
+import six
+import shutil
+import os
+from art.classifiers import TensorFlowV2Classifier
+from art.attacks import FastGradientMethod, CarliniLInfMethod
 
+flags.DEFINE_string("eval_mode", "train", "Which evaluation mode")
+flags.DEFINE_integer("gpuid", 0, "Which gpu id to use")
 
+# Training flags
+flags.DEFINE_string("net", "lenet_fc", "Which net to use.")
+flags.DEFINE_string("mode", "base", "Which mode to use.")
+flags.DEFINE_string("cnn_type", "vgg19", "Which mode to use.")
+flags.DEFINE_string("data", "drd", "Which dataset to use.")
+flags.DEFINE_string("exp_name", None, "Name of experiment")
+flags.DEFINE_integer("batch_size", 15, "Batch size")
+flags.DEFINE_integer("num_samples", 600, "# of samples (per class) used in training")
+flags.DEFINE_integer("num_rounds", 50, "# of rounds in federated learning")
+flags.DEFINE_integer("num_examples_per_user", 1000, "No of examples per user")
+flags.DEFINE_integer("num_classes", 5, "No of classes")
+flags.DEFINE_integer("save_freq", 20, "Saving frequency for model")
+flags.DEFINE_integer("n_epochs", 200, "No of epochs")
+flags.DEFINE_integer("directory", None, "Train directory")
 
-# Each image's dimension is 28 x 28
+flags.DEFINE_integer("seed", None, "Random seed.")
+flags.DEFINE_boolean("use_fl", True, "Use federated learning or not")
+
+# Attack flags
+flags.DEFINE_boolean("attack", True, "Attack to use.")
+flags.DEFINE_string("attack_source", "base", "Source model for attack.")
+flags.DEFINE_string("attack_ord", "inf", "L_inf/ L_2.")
+flags.DEFINE_integer("pgd_steps", 40, "No of pgd steps")
+flags.DEFINE_float("adv_weight", 2.0, "Weight for adversarial cost")
+flags.DEFINE_float("eps", 0.03, "Epsilon for attack")
+flags.DEFINE_float("vul_weight", 1.0, "Vulnerability weight")
+flags.DEFINE_float("step_size", 0.007, "Step size for attack")
+flags.DEFINE_boolean("white_box", True, "White box/black box attack")
+
+FLAGS = app.flags.FLAGS
 
 # configure
 experiment = "all"
@@ -96,8 +135,6 @@ if __name__ == "__main__":
     score = keras_model.evaluate(test_data, verbose=0)
     print("Test loss:", score[0])
     print("Test accuracy:", score[1])
-
-    print()
 
     """
     accuracy = result.history['acc']
