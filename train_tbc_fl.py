@@ -66,6 +66,24 @@ batch_size=32
 def main(argv):
     tf.compat.v1.enable_v2_behavior()
 
+    # Backup current sources to experiment source folder
+    exp_dir = os.path.join("experiments", FLAGS.exp_name + "_" + str(datetime.now()))
+    result_dir = os.path.join(exp_dir, "result")
+    os.makedirs(exp_dir, exist_ok=True)
+    os.makedirs(result_dir, exist_ok=True)
+    shutil.copytree(
+        os.path.abspath(os.path.curdir),
+        os.path.join(exp_dir, "source"),
+        ignore=lambda src, names: {
+        "datasets",
+        ".vscode",
+        "__pycache__",
+        ".git",
+        "*.png",
+        "env",
+        "experiments",
+        }
+    )
     if six.PY3:
         tff.framework.set_default_executor(tff.framework.create_local_executor())
     from glob import glob
@@ -95,13 +113,13 @@ def main(argv):
       x = tf.keras.layers.Dropout(0.4)(x)
       predictions = tf.keras.layers.Dense(CLASSES, activation='sigmoid')(x)
       cnn = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)
-   
+
     # transfer learning
       for layer in base_model.layers:
         layer.trainable = False
-      
+
       cnn.compile(
-        loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
+        loss=tf.keras.losses.BinaryCrossentropy("loss"),
         optimizer=tf.keras.optimizers.RMSprop(),
         metrics=[tf.keras.metrics.Accuracy("acc")],)
       return cnn
@@ -110,6 +128,10 @@ def main(argv):
       keras_model = get_model()
       tff.learning.assign_weights_to_keras_model(keras_model, state.model)
       return keras_model
+
+    def save_model(state, path, name):
+      _model = get_keras_model(state)
+      _model.save(path + "/" + name + ".h5")
 
     EPOCHS = 5
     BATCH_SIZE = 32
@@ -197,7 +219,7 @@ def main(argv):
 
     # classification report
     predicted_classes = cnn.predict_classes(test_X)
-    
+
     correct = (predicted_classes == test_y).nonzero()[0]
     incorrect = (predicted_classes != test_y).nonzero()[0]
 
@@ -248,4 +270,4 @@ def main(argv):
     """
 
 if __name__ == "__main__":
-   app.run(main) 
+   app.run(main)
