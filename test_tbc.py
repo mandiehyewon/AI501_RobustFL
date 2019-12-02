@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import os
 from get_dataset import *
 from glob import glob
+from art.classifiers import TensorFlowV2Classifier    
+from art.attacks import FastGradientMethod, CarliniLInfMethod, SpatialTransformation
 
 # configure
 ########################
@@ -27,8 +29,8 @@ pretrained = "imagenet"
 feature_extraction = False
 
 dataset_path = "/st2/myung/data/TBc"
-all_train = "{}/ALL/train".format(dataset_path)
-all_test = "{}/ALL/test".format(dataset_path)
+all_train = "{}/MSCS/train".format(dataset_path)
+all_test = "{}/MSCS/test".format(dataset_path)
 ms_train = "{}/MS/train".format(dataset_path)
 ms_test = "{}/MS/test".format(dataset_path)
 cs_train = "{}/CS/train".format(dataset_path)
@@ -57,15 +59,13 @@ test_generator = test_datagen.flow_from_directory(
         batch_size=BATCH_SIZE,
         class_mode='categorical')
 """
-test_ds = get_dataset_tbc(
+test_ds = get_dataset_tbc_for_single(
     EPOCHS,
     len(test_files),
     test_files,
     dataset_type="test"
 )
-model = tf.keras.models.load_model('{}_{}_{}_{}_{}_img{}x{}.h5'.format(
-        experiment, cnn_type, pretrained, feature_extraction, dataset_type, HEIGHT, WIDTH
-))
+model = tf.keras.models.load_model('cs4_vgg19_None_False_tbc_img224x224-divyam.h5')
 
 predict_classes = []
 test_y = []
@@ -95,3 +95,13 @@ score = model.evaluate(eval_X,eval_y, verbose=1)
 print()
 print('val loss:', score[0])
 print('val accuracy:', score[1])
+
+loss_object = tf.keras.losses.SparseCategoricalCrossentropy() 
+#classifier = TensorFlowV2Classifier(model=model, nb_classes=2, loss_object=loss_object, clip_values=(0, 1), channel_index=3)
+classifier = TensorFlowV2Classifier(model=model, nb_classes=2, loss_object=loss_object, channel_index=3)
+#attack_fgsm = FastGradientMethod(classifier=classifier) 
+attack_fgsm = SpatialTransformation(classifier=classifier) 
+x_test_adv = attack_fgsm.generate(eval_X)
+score1 = model.evaluate(x_test_adv, eval_y, verbose=0) 
+print("Adversarial loss:", score1[0])
+print("Adversarial accuracy:", score1[1]) 

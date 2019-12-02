@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import os
 from models import *
 from get_dataset import *
+from art.classifiers import TensorFlowV2Classifier
+from art.attacks import FastGradientMethod, CarliniLInfMethod 
 # inception_v3 : image size needs to be at least 75x75
 # others works in image size 32x32
 
@@ -29,6 +31,7 @@ CLASSES = 2
 BATCH_SIZE = 32
 EPOCHS=5
 STEPS_PER_EPOCH = 200
+feature_extraction=False
 
 
 if __name__ == "__main__":
@@ -122,13 +125,23 @@ if __name__ == "__main__":
     for layer in base_model.layers:
         layer.trainable = False
       
+    restored_model1 = tf.keras.models.load_model('cs3_vgg19_imagenet_False_tbc_img224x224.h5')
+
+    restored_model2 = tf.keras.models.load_model('ms3_vgg19_imagenet_False_tbc_img224x224.h5')
+    for layer_num, layer in enumerate(cnn.layers):
+      if layer_num not in [0,3,6,11,16,21,22,23]:
+        layer1 = restored_model1.layers[layer_num]
+        layer2 = restored_model2.layers[layer_num]
+        new_weights = layer1.get_weights()[0] + layer2.get_weights()[0]
+        new_bias = layer1.get_weights()[1] + layer2.get_weights()[1]
+        layer.set_weights(np.array([new_weights, new_bias]))
     cnn.compile(
         loss=tf.keras.losses.SparseCategoricalCrossentropy("loss"),
         optimizer=tf.keras.optimizers.Adam(),
         metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")],
     )
 
-    print(cnn.summary())
+    #print(cnn.summary())
 
     #weight_path="{}_{}_{}_{}_{}_weights.best.hdf5".format(
     #    experiment, cnn_type, pretrained, feature_extraction, 'tbc'
@@ -144,14 +157,14 @@ if __name__ == "__main__":
 
     callbacks_list = [reduceLROnPlat]
 
-    result = cnn.fit_generator(
-        train_ds,
-        verbose=1,
-        epochs=EPOCHS,
-        steps_per_epoch=STEPS_PER_EPOCH,
-        validation_data=test_ds,
-        validation_steps=1,
-        callbacks=callbacks_list)
+    #result = cnn.fit_generator(
+     #   train_ds,
+      #  verbose=1,
+       # epochs=1,
+        #steps_per_epoch=STEPS_PER_EPOCH,
+        #validation_data=test_ds,
+        #validation_steps=1,
+        #callbacks=callbacks_list)
 
     """
     result = cnn.fit_generator(
@@ -171,16 +184,48 @@ if __name__ == "__main__":
     print()
     print('test loss:', score[0])
     print('test accuracy:', score[1])
-    cnn.save('{}_{}_{}_{}_{}_img{}x{}.h5'.format(
+    cnn.save('{}_{}_{}_{}_{}_img{}x{}-divyam1.h5'.format(
         experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
     ))
     # plot result
+
+    test_y = []
+    predict_classes = []
+    eval_X = [] 
+    eval_y = []
+    for x,y in test_ds.take(1): 
+      predict = cnn.predict(x)
+      predict_classes.append(np.argmax(predict, axis=-1))
+      test_y.append(y)
+      eval_X.append(x) 
+      eval_y.append(y) 
+
+    test_y = np.concatenate(test_y, axis=0)
+    predict_classes = np.concatenate(predict_classes, axis=0)
+    eval_X = np.concatenate(eval_X, axis=0)
+    eval_y = np.concatenate(eval_y, axis=0) 
+    from sklearn.metrics import classification_report
+    num_classes = 2
+    target_names = ["Class {}".format(i) for i in range(num_classes)]
+    print(classification_report(test_y, predict_classes, target_names=target_names))   
+
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy()
+    classifier = TensorFlowV2Classifier(model=cnn, nb_classes=2, loss_object=loss_object, clip_values=(0, 1),  channel_index=3) 
+    attack_fgsm = FastGradientMethod(classifier=classifier) 
+    x_test_adv = attack_fgsm.generate(eval_X)
+
+    score1 = cnn.evaluate(x_test_adv, eval_y, verbose=0)
+    print("Adversarial loss:", score1[0])
+    print("Adversarial accuracy:", score1[1])
+
 
     accuracy = result.history['acc']
     test_accuracy = result.history['val_acc']
     loss = result.history['loss']
     test_loss = result.history['val_loss']
     epochs = range(len(accuracy))
+
+
 
     plt.plot(epochs, accuracy, 'red', label='Training accuracy')
     plt.plot(epochs, test_accuracy, 'blue', label='Validation accuracy')
