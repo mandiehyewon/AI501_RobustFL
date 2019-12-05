@@ -1,7 +1,0 @@
-tensorflow==1.15rc0
-tensorflow_federated
-matplotlib
-gast==0.2.2.
-pandas
-sklearn
-Pillow
