@@ -1,4 +1,6 @@
 import tensorflow as tf
+from collections import OrderedDict
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -7,7 +9,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 from models import *
-from get_dataset import *
 from data import get_data
 from models import get_model
 import tensorflow_federated as tff
@@ -17,30 +18,27 @@ from datetime import datetime
 import six
 import shutil
 import os
-from art.classifiers import TensorFlowV2Classifier
-from art.attacks import FastGradientMethod, CarliniLInfMethod
+import pdb
 
-flags.DEFINE_string("eval_mode", "train", "Which evaluation mode")
-flags.DEFINE_integer("gpuid", 0, "Which gpu id to use")
 
-# Training flags
-flags.DEFINE_string("net", "lenet_fc", "Which net to use.")
-flags.DEFINE_string("mode", "base", "Which mode to use.")
-flags.DEFINE_string("cnn_type", "vgg19", "Which mode to use.")
+# Training
+flags.DEFINE_string("cnn_type", "vgg19", "cnn1, cnn3, cnn4, vgg16, vgg19, resnet50,inception_v3 coulde be use.")
 flags.DEFINE_string("data", "tbc", "Which dataset to use.")
-flags.DEFINE_string("exp_name", None, "Name of experiment")
+flags.DEFINE_string("exp_name", "fl_baseline", "Name of experiment")
 flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("num_samples", 600, "# of samples (per class) used in training")
 flags.DEFINE_integer("num_rounds", 5, "# of rounds in federated learning")
 flags.DEFINE_integer("num_div", 1, "# of division in china set")
 flags.DEFINE_integer("num_examples_per_user", 1000, "No of examples per user")
-flags.DEFINE_integer("num_classes", 5, "No of classes")
+flags.DEFINE_integer("num_classes", 2, "No of classes")
 flags.DEFINE_integer("save_freq", 20, "Saving frequency for model")
 flags.DEFINE_integer("n_epochs", 1, "No of epochs")
 flags.DEFINE_integer("directory", None, "Train directory")
-
+flags.DEFINE_integer("width", 224, "Width of the image")
+flags.DEFINE_integer("height", 224, "Height of the image")
 flags.DEFINE_integer("seed", None, "Random seed.")
 flags.DEFINE_boolean("use_fl", True, "Use federated learning or not")
+
 
 # Attack flags
 flags.DEFINE_boolean("attack", True, "Attack to use.")
@@ -53,18 +51,12 @@ flags.DEFINE_float("vul_weight", 1.0, "Vulnerability weight")
 flags.DEFINE_float("step_size", 0.007, "Step size for attack")
 flags.DEFINE_boolean("white_box", True, "White box/black box attack")
 
-FLAGS = app.flags.FLAGS
 
-# configure
-experiment = "all"
-dataset_type = "tbc"
-cnn_type = "vgg19" # "cnn1","cnn3","cnn4","vgg16","vgg19","resnet50","inception_v3"
-#random_seed = 42
-total_epoch=5
-batch_size=32
+FLAGS = app.flags.FLAGS
 
 
 def main(argv):
+
     tf.compat.v1.enable_v2_behavior()
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -84,193 +76,85 @@ def main(argv):
         "*.png",
         "env",
         "experiments",
+        "baseline_results"
         }
     )
+
+
+    print(tf.test.is_gpu_available())
+    print(tf.test.is_built_with_cuda())
+
     if six.PY3:
         tff.framework.set_default_executor(tff.framework.create_local_executor())
-    from glob import glob
-    dataset_path = "/st2/myung/data/TBc"
-    all_train = "{}/MSCS/train/".format(dataset_path)
-    all_test = "{}/MSCS/test/".format(dataset_path)
-    ms_train = "{}/MS/train/".format(dataset_path)
-    ms_test = "{}/MS/test/".format(dataset_path)
-    cs_train = "{}/CS/train/".format(dataset_path)
-    cs_test = "{}/CS/test/".format(dataset_path)
 
     train_data, test_data = get_data(FLAGS)
-    HEIGHT = 224
-    WIDTH = 224
-    CLASSES = 1
-    BATCH_SIZE = 32
 
-    def get_model():
-      base_model = tf.keras.applications.VGG19(weights='imagenet',
-                      include_top=False,
-                      input_shape=(HEIGHT, WIDTH, 3))
 
-      x = base_model.output
-      x = tf.keras.layers.GlobalAveragePooling2D()(x)
-      x = tf.keras.layers.Dense(128, activation='relu')(x)
-      x = tf.keras.layers.Dropout(0.4)(x)
-      predictions = tf.keras.layers.Dense(CLASSES, activation='sigmoid')(x)
-      cnn = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)
+    def save_model(state, path, name, keras_model):
+        tff.learning.assign_weights_to_keras_model(keras_model, state.model)
+        keras_model.save(path + "/" + name + ".h5")
 
-    # transfer learning
-      for layer in base_model.layers:
-        layer.trainable = False
-
-      cnn.compile(
-        loss=tf.keras.losses.BinaryCrossentropy("loss"),
-        optimizer=tf.keras.optimizers.RMSprop(),
-        metrics=[tf.keras.metrics.BinaryAccuracy("acc")],)
-      return cnn
-
-    def get_keras_model(state):
-      keras_model = get_model()
-      tff.learning.assign_weights_to_keras_model(keras_model, state.model)
-      return keras_model
-
-    def save_model(state, path, name):
-      _model = get_keras_model(state)
-      _model.save(path + "/" + name + ".h5")
-
-    EPOCHS = 5
-    BATCH_SIZE = 32
-    STEPS_PER_EPOCH = 320
-
+    STEPS_PER_EPOCH = 200
     for x, y in train_data[0].take(1):
-      sample_batch = {'x': x.numpy(), 'y': y.numpy()}
+        sample_batch = OrderedDict([("x", x.numpy()), ("y",y.numpy())])
 
     def model_fn():
-      cnn = get_model()
-      return tff.learning.from_compiled_keras_model(cnn, sample_batch)
+        cnn = get_model(FLAGS)
+        return tff.learning.from_compiled_keras_model(cnn, sample_batch)
 
     fed_avg = tff.learning.build_federated_averaging_process(model_fn)
     state = fed_avg.initialize()
-
+    keras_model = get_model(FLAGS)
+    print(keras_model.summary())
+    print("non-trainable: ",len(keras_model.non_trainable_weights))
+    print("trainable: ",len(keras_model.trainable_weights))
+    state = tff.learning.state_with_new_model_weights(
+        state,
+        trainable_weights=[v.numpy() for v in keras_model.trainable_weights],
+        non_trainable_weights=[
+            v.numpy() for v in keras_model.non_trainable_weights
+    ])
     print("Round starts!")
     print(len(train_data))
-
     start_time = datetime.now()
     for round_num in range(1, FLAGS.num_rounds + 1):
-      state, metrics = fed_avg.next(state, train_data)
-      print('round {:2d}, metrics={} Elasped time: {}'.format(round_num, metrics, datetime.now()-start_time))
-      save_model(state, result_dir, "round_{}".format(round_num))
+        state, metrics = fed_avg.next(state, train_data)
+        print('round {:2d}, metrics={} Elasped time: {}'.format(round_num, metrics, datetime.now()-start_time))
+        save_model(state, result_dir, "round_{}".format(round_num), keras_model)
+        tff.learning.assign_weights_to_keras_model(keras_model, state.model)
+        score = keras_model.evaluate(test_data, steps=1, verbose=0)
+        print("[evaluation] loss: {}\t accuracy: {}".format(score[0], score[1]))
 
-    keras_model = get_keras_model(state)
-    score = keras_model.evaluate(test_data, verbose=0)
+
+    tff.learning.assign_weights_to_keras_model(keras_model, state.model)
+
+    score = keras_model.evaluate(test_data,  steps=1, verbose=0)
     print("Test loss:", score[0])
     print("Test accuracy:", score[1])
+    # evaluate
+    print()
+    predict_classes = []
+    test_y = []
+    eval_X = []
+    eval_y = []
 
-    """
-    accuracy = result.history['acc']
-    test_accuracy = result.history['val_acc']
-    loss = result.history['loss']
-    test_loss = result.history['val_loss']
-    epochs = range(len(accuracy))
+    for x,y in test_data.take(1):
+        predict = keras_model.predict(x)
+        predict_classes.append(np.argmax(predict, axis=-1))
+        test_y.append(y)
+        eval_X.append(x)
+        eval_y.append(y)
 
-    plt.plot(epochs, accuracy, 'red', label='Training accuracy')
-    plt.plot(epochs, test_accuracy, 'blue', label='Validation accuracy')
-    plt.title('Training and validation accuracy')
-    plt.legend()
-    plt.savefig("{}_{}_{}_{}_{}_img{}x{}_accuracy.pdf".format(
-        experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
-    ))
-    plt.close()
+    test_y = np.concatenate(test_y, axis=0)
+    predict_classes = np.concatenate(predict_classes, axis=0)
+    eval_X = np.concatenate(eval_X, axis=0)
+    eval_y = np.concatenate(eval_y, axis=0)
 
-    plt.plot(epochs, test_accuracy, 'blue', label='Validation accuracy')
-    plt.title('Validation accuracy')
-    plt.legend()
-    plt.savefig("{}_{}_{}_{}_{}_img{}x{}_test_accuracy.pdf".format(
-        experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
-    ))
-    plt.close()
-
-    plt.plot(epochs, accuracy, 'red', label='Training accuracy')
-    plt.title('Training accuracy')
-    plt.legend()
-    plt.savefig("{}_{}_{}_{}_{}_img{}x{}_train_accuracy.pdf".format(
-        experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
-    ))
-    plt.close()
-
-
-    plt.plot(epochs, loss, 'red', label='Training loss')
-    plt.plot(epochs, test_loss, 'blue', label='Validation loss')
-    plt.title('Training and validation loss')
-    plt.legend()
-    plt.savefig("{}_{}_{}_{}_{}_img{}x{}_loss.pdf".format(
-        experiment, pretrained, cnn_type, feature_extraction, dataset_type, img_rows, img_cols
-    ))
-    plt.close()
-
-    plt.plot(epochs, test_loss, 'blue', label='Validation loss')
-    plt.title('Validation loss')
-    plt.legend()
-    plt.savefig("{}_{}_{}_{}_{}_img{}x{}_test_loss.pdf".format(
-        experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
-    ))
-    plt.close()
-
-    plt.plot(epochs, loss, 'red', label='Training loss')
-    plt.title('Training loss')
-    plt.legend()
-    plt.savefig("{}_{}_{}_{}_{}_img{}x{}_train_loss.pdf".format(
-        experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
-    ))
-    plt.close()
-
-    # classification report
-    predicted_classes = cnn.predict_classes(test_X)
-
-    correct = (predicted_classes == test_y).nonzero()[0]
-    incorrect = (predicted_classes != test_y).nonzero()[0]
-
+    print(test_y.shape, predict_classes.shape)
     from sklearn.metrics import classification_report
+    target_names = ["Class {}".format(i) for i in range(FLAGS.num_classes)]
+    print(classification_report(test_y, predict_classes, target_names=target_names))
 
-    target_names = ["Class {}".format(i) for i in range(num_classes)]
-    print(classification_report(test_y, predicted_classes, target_names=target_names))
-
-    # plot correctly predicted classes
-    for i, correct in enumerate(correct[:9]):
-        plt.subplot(3, 3, i + 1)
-        plt.imshow(
-            test_X[correct].reshape(img_rows, img_cols, img_channels),
-            cmap="gray",
-            interpolation="none",
-        )
-        plt.title(
-            "Predicted {}, Class {}".format(predicted_classes[correct], test_y[correct])
-        )
-        plt.tight_layout()
-    plt.savefig(
-        "{}_{}_{}_{}_{}_img{}x{}_correct_prediction.pdf".format(
-            experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
-        )
-    )
-    plt.close()
-
-    # plot incorrectly predicted classes
-    for i, incorrect in enumerate(incorrect[0:9]):
-        plt.subplot(3, 3, i + 1)
-        plt.imshow(
-            test_X[incorrect].reshape(img_rows, img_cols, img_channels),
-            cmap="gray",
-            interpolation="none",
-        )
-        plt.title(
-            "Predicted {}, Class {}".format(
-                predicted_classes[incorrect], test_y[incorrect]
-            )
-        )
-        plt.tight_layout()
-    plt.savefig(
-        "{}_{}_{}_{}_{}_img{}x{}_incorrect_prediction.pdf".format(
-            experiment, cnn_type, pretrained, feature_extraction, dataset_type, img_rows, img_cols
-        )
-    )
-    plt.close()
-    """
 
 if __name__ == "__main__":
-   app.run(main)
+    app.run(main)

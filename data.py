@@ -1,5 +1,7 @@
 import tensorflow as tf
 import numpy as np
+from collections import OrderedDict
+
 from get_dataset import get_dataset_drd, get_dataset_tbc
 
 def get_data_for_fl(FLAGS, source, digit):
@@ -7,10 +9,8 @@ def get_data_for_fl(FLAGS, source, digit):
   all_samples = [i for i, d in enumerate(source[1]) if d == digit]
   for i in range(0, min(len(all_samples), FLAGS.num_examples_per_user), FLAGS.batch_size):
     batch_samples = all_samples[i:i + FLAGS.batch_size]
-    output_sequence.append({
-        'x': np.array([source[0][i] / 255.0 for i in batch_samples],
-                      dtype=np.float32),
-        'y': np.array([source[1][i] for i in batch_samples], dtype=np.int32)})
+    output_sequence.append(OrderedDict([('x', np.array([source[0][i] / 255.0 for i in batch_samples], dtype=np.float32)),
+                                        ('y', np.array([source[1][i] for i in batch_samples], dtype=np.int32))]))
   return output_sequence
 
 
@@ -31,8 +31,8 @@ def get_data(FLAGS):
     test = get_dataset_drd(None, 1, FLAGS.batch_size, 5*FLAGS.num_samples, split="val")
   elif FLAGS.data == "tbc":
     assert FLAGS.num_samples >= FLAGS.batch_size
-    train_m, test_m = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, center="MontgomerySet")
-    train_c, test_c = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, num_division=FLAGS.num_div, center="ChinaSet_AllFiles")
+    train_m, test_m = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, center="MS")
+    train_c, test_c = get_dataset_tbc(FLAGS.n_epochs, 1, FLAGS.batch_size, FLAGS.num_samples, num_division=FLAGS.num_div, center="CS")
     train = train_m + train_c
     print(len(train_m), len(train_c))
     # test = [test_m, test_c]
@@ -47,5 +47,3 @@ def get_data(FLAGS):
       test /= 255
 
   return train, test
-
-
