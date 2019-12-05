@@ -120,7 +120,7 @@ def main(argv):
         save_model(state, result_dir, "round_{}".format(round_num), keras_model)
         tff.learning.assign_weights_to_keras_model(keras_model, state.model)
         score = keras_model.evaluate(test_data, steps=1, verbose=0)
-        print("[evaluation] loss: {}\t acc: {}".format(score[0], score[1]))
+        print("[evaluation] loss: {}\t accuracy: {}".format(score[0], score[1]))
 
 
     tff.learning.assign_weights_to_keras_model(keras_model, state.model)
