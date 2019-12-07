@@ -1,6 +1,7 @@
 import tensorflow as tf
 from glob import glob
 import numpy as np
+from collections import OrderedDict
 
 def get_dataset_drd(
     target_class,
@@ -83,7 +84,7 @@ def get_dataset_tbc(
     total_epoch_train,
     total_epoch_val,
     batch_size,
-    num_samples,
+    steps_per_epoch=200,
     num_division=1,
     img_size=224,
     center="MS",  # ChinaSet_AllFiles
@@ -111,7 +112,7 @@ def get_dataset_tbc(
         _path = tf.strings.substr(path, -5, 1)
         label = tf.strings.to_number(_path, out_type=tf.dtypes.int32)
         return img, label
-    
+
     def test_load_img(path):
         img = tf.io.read_file(path)
         img = tf.image.decode_jpeg(img, channels=3)
@@ -121,8 +122,8 @@ def get_dataset_tbc(
         # Paths are of format ...{label}.png
         _path = tf.strings.substr(path, -5, 1)
         label = tf.strings.to_number(_path, out_type=tf.dtypes.int32)
-        return img, label        
-    
+        return img, label
+
     def augment_img(img, label):
         if horizontal_flip:
             img = tf.image.random_flip_left_right(img)
@@ -142,35 +143,42 @@ def get_dataset_tbc(
         img = tf.clip_by_value(img, 0.0, 1.0)
         return img, label
 
- 
+
+    def element_fn(img, label):
+        return OrderedDict([
+            ('x', img),
+            ('y', label),
+        ])
+
+
     train_data_list = glob("{}/{}/train/**/*.png".format(dataset_path, center))
     val_data_list = glob("{}/{}/test/**/*.png".format(dataset_path, "MSCS"))
+
+    num_samples_div = (len(train_data_list)+num_division-1)//num_division
+
     print(
-        "# of Data: train {}\tval {} \t--\tnum steps {}, {}".format(
+        "# of Data: train {}\tval {} \t--\ttotal steps_per_epoch {} ".format(
             len(train_data_list),
             len(val_data_list),
-            (batch_size*100)//len(train_data_list)+1,
-            (((batch_size*100)//len(train_data_list))+1)*num_division*total_epoch_train,
-
+            (steps_per_epoch//(num_samples_div//batch_size)+1)*(num_samples_div//batch_size)
         )
     )
     train_ds = []
-    num_samples_div = (len(train_data_list)+num_division-1)//num_division
     for i in range(0, len(train_data_list), num_samples_div):
-      ds = tf.data.Dataset.from_tensor_slices(train_data_list[i:i+num_samples_div])
-      ds = ds.map(train_load_img, tf.data.experimental.AUTOTUNE)
-      ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
-      ds = ds.batch(batch_size)
-      ds = ds.repeat((((batch_size*100)//len(train_data_list))+1)*num_division*total_epoch_train)
-      ds = ds.prefetch(1)
-      train_ds.append(ds)
+        ds = tf.data.Dataset.from_tensor_slices(train_data_list[i:i+num_samples_div])
+        ds = ds.map(train_load_img, tf.data.experimental.AUTOTUNE)
+        ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
+        ds = ds.map(element_fn)
+        ds = ds.take(steps_per_epoch*batch_size)
+        ds = ds.batch(batch_size)
+        ds = ds.shuffle(steps_per_epoch*batch_size)
+        ds = ds.repeat(total_epoch_train)
+        train_ds.append(ds)
 
     val_ds = tf.data.Dataset.from_tensor_slices(val_data_list)
     val_ds = val_ds.map(test_load_img, tf.data.experimental.AUTOTUNE)
     val_ds = val_ds.batch(len(val_data_list))
     val_ds = val_ds.repeat(1)
-    val_ds = val_ds.prefetch(1)
-
     return train_ds, val_ds
 
 def get_dataset_tbc_for_single(
@@ -178,6 +186,7 @@ def get_dataset_tbc_for_single(
     batch_size,
     files,
     dataset_type="train",
+    step_per_epoch=200,
     img_size=224,
     horizontal_flip=True,
     vertical_flip=False,
@@ -188,7 +197,7 @@ def get_dataset_tbc_for_single(
     random_crop=True,
     crop_rate=0.95,
 ):
-   
+
     if random_crop and dataset_type == "train":
         # If use random crop, load image with larger size
         _img_size = int(img_size / crop_rate)
@@ -225,14 +234,14 @@ def get_dataset_tbc_for_single(
         img = tf.clip_by_value(img, 0.0, 1.0)
         return img, label
 
-  
+
     ds = tf.data.Dataset.from_tensor_slices(files)
     ds = ds.shuffle(len(files), reshuffle_each_iteration=True)
     ds = ds.map(load_img, tf.data.experimental.AUTOTUNE)
     if dataset_type == "train":
         ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
     ds = ds.batch(batch_size)
-    ds = ds.repeat(-1)
+    ds = ds.repeat(total_epoch)
     ds = ds.prefetch(1)
     return ds
 

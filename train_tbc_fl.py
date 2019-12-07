@@ -33,7 +33,8 @@ flags.DEFINE_integer("num_div", 1, "# of division in china set")
 flags.DEFINE_integer("num_examples_per_user", 1000, "No of examples per user")
 flags.DEFINE_integer("num_classes", 2, "No of classes")
 flags.DEFINE_integer("save_freq", 20, "Saving frequency for model")
-flags.DEFINE_integer("n_epochs", 1, "No of epochs")
+flags.DEFINE_integer("n_epochs", 5, "No of epochs")
+flags.DEFINE_integer("steps_per_epoch", 200, "No of epochs")
 flags.DEFINE_integer("directory", None, "Train directory")
 flags.DEFINE_integer("width", 224, "Width of the image")
 flags.DEFINE_integer("height", 224, "Height of the image")
@@ -86,14 +87,13 @@ def main(argv):
 
     train_data, test_data = get_data(FLAGS)
 
-
     def save_model(state, path, name, keras_model):
         tff.learning.assign_weights_to_keras_model(keras_model, state.model)
         keras_model.save(path + "/" + name + ".h5")
 
-    STEPS_PER_EPOCH = 200
-    for x, y in train_data[0].take(1):
-        sample_batch = OrderedDict([("x", x.numpy()), ("y",y.numpy())])
+
+    sample_batch = tf.nest.map_structure(
+        lambda x: x.numpy(), iter(train_data[0]).next())
 
     def model_fn():
         cnn = get_model(FLAGS)
@@ -131,26 +131,24 @@ def main(argv):
     # evaluate
     print()
     predict_classes = []
-    test_y = []
     eval_X = []
     eval_y = []
 
     for x,y in test_data.take(1):
         predict = keras_model.predict(x)
         predict_classes.append(np.argmax(predict, axis=-1))
-        test_y.append(y)
         eval_X.append(x)
         eval_y.append(y)
 
-    test_y = np.concatenate(test_y, axis=0)
     predict_classes = np.concatenate(predict_classes, axis=0)
     eval_X = np.concatenate(eval_X, axis=0)
     eval_y = np.concatenate(eval_y, axis=0)
 
-    print(test_y.shape, predict_classes.shape)
+    print(eval_y.shape, predict_classes.shape)
+
     from sklearn.metrics import classification_report
     target_names = ["Class {}".format(i) for i in range(FLAGS.num_classes)]
-    print(classification_report(test_y, predict_classes, target_names=target_names))
+    print(classification_report(eval_y, predict_classes, target_names=target_names))
 
 
 if __name__ == "__main__":
