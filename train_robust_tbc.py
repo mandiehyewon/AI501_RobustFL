@@ -1,6 +1,6 @@
 import os
 os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+os.environ['CUDA_VISIBLE_DEVICES'] = "4"
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -24,7 +24,7 @@ HEIGHT = 224
 WIDTH = 224
 CLASSES = 2
 BATCH_SIZE = 32
-EPOCHS = 1
+EPOCHS = 5
 STEPS_PER_EPOCH = 200
 
 
@@ -161,13 +161,14 @@ if __name__ == "__main__":
 
     # one batch for validation
     count = 0
-    for x,y in test_ds.take(10):
+    for x,y in train_ds.take(100):
         if not count:
             x_train = np.array(x, dtype=np.float32)
             y_train = np.array(y, dtype=np.float32)
+            count += 1
         else:
-            x_train = np.append(x_train, x, dtype=np.float32)
-            y_train = np.append(y_train, y, dtype=np.int32)
+            x_train = np.append(x_train, x, axis=0)
+            y_train = np.append(y_train, y, axis=0)
 
     classifier = KerasClassifier(model=cnn, clip_values=(0, 1))
     attack = FastGradientMethod(classifier=classifier, eps=0.3)
@@ -182,7 +183,7 @@ if __name__ == "__main__":
     y_train = np.append(y_train, y_train, axis=0)
 
     if not os.path.isfile('robust_model.h5'):
-      robust_model = robust_cnn.fit(x_train, y_train, nb_epochs=EPOCHS, batch_size=128)
+      robust_model = robust_cnn.fit(x_train, y_train, epochs=EPOCHS, batch_size=128)
       robust_cnn.save('robust_model')
     else:
         cnn.load_weights('robust_model.h5')
@@ -202,10 +203,6 @@ if __name__ == "__main__":
     print("*"*100)
     attack = FastGradientMethod(classifier=classifier, eps=0.3)
     x_test_adv = attack.generate(x=x_test)
-    
-    x_train = np.append(x_train, x_train_adv, axis=0)
-    y_train = np.append(y_train, y_train, axis=0)
-
     perturbation = np.mean(np.abs((x_test_adv - x_test)))
     print('Average perturbation: {:.10f}'.format(perturbation))
     predict = classifier.predict(x_test_adv)
@@ -295,10 +292,6 @@ if __name__ == "__main__":
     print("*"*100)
     attack = FastGradientMethod(classifier=classifier, eps=0.3)
     x_test_adv = attack.generate(x=x_test)
-    
-    x_train = np.append(x_train, x_train_adv, axis=0)
-    y_train = np.append(y_train, y_train, axis=0)
-
     perturbation = np.mean(np.abs((x_test_adv - x_test)))
     print('Average perturbation: {:.10f}'.format(perturbation))
     predict = classifier.predict(x_test_adv)
