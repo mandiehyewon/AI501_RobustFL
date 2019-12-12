@@ -157,10 +157,9 @@ def get_dataset_tbc(
     num_samples_div = (len(train_data_list)+num_division-1)//num_division
 
     print(
-        "# of Data: train {}\tval {} \t--\ttotal steps_per_epoch {} ".format(
+        "# of Data: train {}\tval {}".format(
             len(train_data_list),
             len(val_data_list),
-            (steps_per_epoch//(num_samples_div//batch_size)+1)*(num_samples_div//batch_size)
         )
     )
     train_ds = []
@@ -169,10 +168,9 @@ def get_dataset_tbc(
         ds = ds.map(train_load_img, tf.data.experimental.AUTOTUNE)
         ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
         ds = ds.map(element_fn)
-        ds = ds.take(steps_per_epoch*batch_size)
+        ds = ds.shuffle(1000)
         ds = ds.batch(batch_size)
-        ds = ds.shuffle(steps_per_epoch*batch_size)
-        ds = ds.repeat(total_epoch_train)
+        ds = ds.repeat(total_epoch_train*3)
         train_ds.append(ds)
 
     val_ds = tf.data.Dataset.from_tensor_slices(val_data_list)
