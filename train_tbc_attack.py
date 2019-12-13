@@ -1,3 +1,6 @@
+import os
+os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = "3"
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -5,7 +8,6 @@ from sklearn.model_selection import train_test_split
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import os
 from models import *
 from get_dataset_jm import *
 from art.classifiers import KerasClassifier

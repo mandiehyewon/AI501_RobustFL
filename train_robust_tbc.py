@@ -11,7 +11,8 @@ import matplotlib.pyplot as plt
 from models import *
 from get_dataset import *
 from art.classifiers import KerasClassifier
-from art.attacks import FastGradientMethod, CarliniLInfMethod, ProjectedGradientDescent
+from sklearn.metrics import classification_report
+from art.attacks import FastGradientMethod, CarliniLInfMethod, ProjectedGradientDescent, CarliniL2Method
 # inception_v3 : image size needs to be at least 75x75
 # others works in image size 32x32
 dataset_type = "tbc"
@@ -115,7 +116,6 @@ if __name__ == "__main__":
 
 
         print(y_test.shape, predict_classes.shape)
-        from sklearn.metrics import classification_report
         target_names = ["Class {}".format(i) for i in range(CLASSES)]
         print(classification_report(y_test, predict_classes, target_names=target_names))
 
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     # plot result
     #import pdb
     #pdb.set_trace()
-    print()
+#     print()
     predict_classes = []
     x_test = []
     y_test = []
@@ -159,9 +159,8 @@ if __name__ == "__main__":
     print('test accuracy:', score[1])
     #tf.compat.v1.disable_eager_execution()
 
-    # one batch for validation
     count = 0
-    for x,y in train_ds.take(100):
+    for x,y in train_ds.take(1000):
         if not count:
             x_train = np.array(x, dtype=np.float32)
             y_train = np.array(y, dtype=np.float32)
@@ -170,119 +169,111 @@ if __name__ == "__main__":
             x_train = np.append(x_train, x, axis=0)
             y_train = np.append(y_train, y, axis=0)
 
-    classifier = KerasClassifier(model=cnn, clip_values=(0, 1))
-    attack = FastGradientMethod(classifier=classifier, eps=0.3)
+    robust_cnn = KerasClassifier(model=cnn, clip_values=(0, 1))
+
+    print("------Evaluating standard classifier-----")
+    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
+    print('Accuracy on benign test examples: {:.3f}%'.format(accuracy * 100))
+    x_example = x_test[example]
+
+    # Generate adversarial test examples
+    # Evaluate the ART classifier on adversarial test examples
+    print("*"*100)
+    attack = FastGradientMethod(classifier=robust_cnn, eps=0.03)
+    x_test_adv = attack.generate(x=x_test)
+    perturbation = np.mean(np.abs((x_test_adv - x_test)))
+    print('Average perturbation: {:.10f}'.format(perturbation))
+    predict = robust_cnn.predict(x_test_adv)
+    predict_classes = np.argmax(predict, axis=-1)
+    target_names = ["Class {}".format(i) for i in range(CLASSES)]
+    print(classification_report(y_test, predict_classes, target_names=target_names))
+    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
+    print('Accuracy on FastGradientMethod test examples: {:.3f}%'.format(accuracy * 100))
+    fg_example = x_test_adv[example]
+
+    print("*"*100)
+    attack = CarliniLInfMethod(classifier=robust_cnn, eps=0.03, max_iter=100, learning_rate=0.01)
+    x_test_adv = attack.generate(x=x_test, y=tf.keras.utils.to_categorical(np.ones_like(y_test)))
+    perturbation = np.mean(np.abs((x_test_adv - x_test)))
+    print('Average perturbation: {:.10f}'.format(perturbation))
+    predict = robust_cnn.predict(x_test_adv)
+    predict_classes = np.argmax(predict, axis=-1)
+    target_names = ["Class {}".format(i) for i in range(CLASSES)]
+    print(classification_report(y_test, predict_classes, target_names=target_names))
+    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
+    print('Accuracy on CarliniLInfMethod test examples: {:.3f}%'.format(accuracy * 100))
+    carlini_example = x_test_adv[example]
+
+    print("*"*100)
+    attack = ProjectedGradientDescent(robust_cnn, norm=np.inf, eps=0.03, eps_step=0.007,max_iter=100)
+    x_test_adv = attack.generate(x_test)
+    perturbation = np.mean(np.abs((x_test_adv - x_test)))
+    print('Average perturbation: {:.10f}'.format(perturbation))
+    predict = robust_cnn.predict(x_test_adv)
+    predict_classes = np.argmax(predict, axis=-1)
+    target_names = ["Class {}".format(i) for i in range(CLASSES)]
+    print(classification_report(y_test, predict_classes, target_names=target_names))
+    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
+    print('Accuracy on ProjectedGradientDescent[norm=inf] test examples: {:.3f}%'.format(accuracy * 100))
+    pgdInf_example = x_test_adv[example]
+
+    print("*"*100)
+    attack = ProjectedGradientDescent(robust_cnn, norm=1, eps=12, eps_step=0.1,max_iter=100)
+    x_test_adv = attack.generate(x_test)
+    perturbation = np.mean(np.abs((x_test_adv - x_test)))
+    print('Average perturbation: {:.10f}'.format(perturbation))
+    predict = robust_cnn.predict(x_test_adv)
+    predict_classes = np.argmax(predict, axis=-1)
+    target_names = ["Class {}".format(i) for i in range(CLASSES)]
+    print(classification_report(y_test, predict_classes, target_names=target_names))
+    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
+    print('Accuracy on ProjectedGradientDescent[norm=1] test examples: {:.3f}%'.format(accuracy * 100))
+    pgd1_example = x_test_adv[example]
+
+    print("*"*100)
+    attack = ProjectedGradientDescent(robust_cnn, norm=2, eps=0.5, eps_step=0.05,max_iter=100)
+    x_test_adv = attack.generate(x_test)
+    perturbation = np.mean(np.abs((x_test_adv - x_test)))
+    print('Average perturbation: {:.10f}'.format(perturbation))
+    predict = robust_cnn.predict(x_test_adv)
+    predict_classes = np.argmax(predict, axis=-1)
+    target_names = ["Class {}".format(i) for i in range(CLASSES)]
+    print(classification_report(y_test, predict_classes, target_names=target_names))
+    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
+    print('Accuracy on ProjectedGradientDescent[norm=2] test examples: {}%'.format(accuracy * 100))
+    pgd2_example = x_test_adv[example]
+
+    imgs = [x_example, fg_example, carlini_example,\
+            pgdInf_example, pgd1_example, pgd2_example]
+    img_labels = ["Original", "FastGradient", "CarliniInf",\
+                  "PGD[norm=Inf]", "PGD[norm=1]", "PGD[norm=2]"]
+    fig=plt.figure(figsize=(20, 20))
+    columns = 6
+    rows = 1
+    for i in range(0, columns*rows):
+        fig.add_subplot(rows, columns, i+1)
+        plt.imshow(imgs[i])
+        plt.title(img_labels[i])
+
+    plt.savefig("standard.png")
+
+
+    attack = ProjectedGradientDescent(robust_cnn, norm=np.inf, eps=0.03, eps_step=0.007,max_iter=40)
     x_adv = attack.generate(x=x_train)
 
     print("------Training Robust Model------")
-    robust_cnn = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)
-    robust_cnn.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(),
-              metrics=[tf.keras.metrics.SparseCategoricalAccuracy("acc")])
-    x_train = np.append(x_train, x_adv, axis=0)
-    y_train = np.append(y_train, y_train, axis=0)
+    x_train_final = np.append(x_train, x_adv, axis=0)
+    y_train_final = np.append(y_train, y_train, axis=0)
 
     if not os.path.isfile('robust_model.h5'):
-      robust_model = robust_cnn.fit(x_train, y_train, epochs=EPOCHS, batch_size=128)
-      robust_cnn.save('robust_model')
+      print(x_adv.shape, y_train.shape, x_train_final.shape, y_train_final.shape, x_train.shape)
+      robust_model = robust_cnn.fit(x_train_final, y_train_final, nb_epochs=1, batch_size=128)
+      robust_cnn.save('robust_model.h5')
     else:
         cnn.load_weights('robust_model.h5')
         print("Loaded Robust model")
 
-    # Step 5: Evaluate the ART classifier on benign test examples
-    print("------Evaluating standard classifier-----")
-    classifier = KerasClassifier(model=cnn, clip_values=(0, 1))
-    attack = FastGradientMethod(classifier=classifier, eps=0.3)
-    predict = classifier.predict(x_test)
-    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
-    print('Accuracy on benign test examples: {:.3f}%'.format(accuracy * 100))
-    x_example = x_test[example]
-
-    # Generate adversarial test examples
-    # Evaluate the ART classifier on adversarial test examples
-    print("*"*100)
-    attack = FastGradientMethod(classifier=classifier, eps=0.3)
-    x_test_adv = attack.generate(x=x_test)
-    perturbation = np.mean(np.abs((x_test_adv - x_test)))
-    print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
-    predict_classes = np.argmax(predict, axis=-1)
-    target_names = ["Class {}".format(i) for i in range(CLASSES)]
-    print(classification_report(y_test, predict_classes, target_names=target_names))
-    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
-    print('Accuracy on FastGradientMethod test examples: {:.3f}%'.format(accuracy * 100))
-    fg_example = x_test_adv[example]
-
-    print("*"*100)
-    attack = CarliniLInfMethod(classifier=classifier, eps=0.3, max_iter=100, learning_rate=0.01)
-    x_test_adv = attack.generate(x=x_test, y=tf.keras.utils.to_categorical(np.ones_like(y_test)))
-    perturbation = np.mean(np.abs((x_test_adv - x_test)))
-    print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
-    predict_classes = np.argmax(predict, axis=-1)
-    target_names = ["Class {}".format(i) for i in range(CLASSES)]
-    print(classification_report(y_test, predict_classes, target_names=target_names))
-    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
-    print('Accuracy on CarliniLInfMethod test examples: {:.3f}%'.format(accuracy * 100))
-    carlini_example = x_test_adv[example]
-
-    print("*"*100)
-    attack = ProjectedGradientDescent(classifier, norm=np.inf, eps=0.3, eps_step=0.1,max_iter=100)
-    x_test_adv = attack.generate(x_test)
-    perturbation = np.mean(np.abs((x_test_adv - x_test)))
-    print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
-    predict_classes = np.argmax(predict, axis=-1)
-    target_names = ["Class {}".format(i) for i in range(CLASSES)]
-    print(classification_report(y_test, predict_classes, target_names=target_names))
-    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
-    print('Accuracy on ProjectedGradientDescent[norm=inf] test examples: {:.3f}%'.format(accuracy * 100))
-    pgdInf_example = x_test_adv[example]
-
-    print("*"*100)
-    attack = ProjectedGradientDescent(classifier, norm=1, eps=0.3, eps_step=0.1,max_iter=100)
-    x_test_adv = attack.generate(x_test)
-    perturbation = np.mean(np.abs((x_test_adv - x_test)))
-    print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
-    predict_classes = np.argmax(predict, axis=-1)
-    target_names = ["Class {}".format(i) for i in range(CLASSES)]
-    print(classification_report(y_test, predict_classes, target_names=target_names))
-    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
-    print('Accuracy on ProjectedGradientDescent[norm=1] test examples: {:.3f}%'.format(accuracy * 100))
-    pgd1_example = x_test_adv[example]
-
-    print("*"*100)
-    attack = ProjectedGradientDescent(classifier, norm=2, eps=0.3, eps_step=0.1,max_iter=100)
-    x_test_adv = attack.generate(x_test)
-    perturbation = np.mean(np.abs((x_test_adv - x_test)))
-    print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
-    predict_classes = np.argmax(predict, axis=-1)
-    target_names = ["Class {}".format(i) for i in range(CLASSES)]
-    print(classification_report(y_test, predict_classes, target_names=target_names))
-    accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
-    print('Accuracy on ProjectedGradientDescent[norm=2] test examples: {}%'.format(accuracy * 100))
-    pgd2_example = x_test_adv[example]
-
-    imgs = [x_example, fg_example, carlini_example,\
-            pgdInf_example, pgd1_example, pgd2_example]
-    img_labels = ["Original", "FastGradient", "CarliniInf",\
-                  "PGD[norm=Inf]", "PGD[norm=1]", "PGD[norm=2]"]
-    fig=plt.figure(figsize=(20, 20))
-    columns = 6
-    rows = 1
-    for i in range(0, columns*rows):
-        fig.add_subplot(rows, columns, i+1)
-        plt.imshow(imgs[i])
-        plt.title(img_labels[i])
-
-    plt.savefig("attack_example2.png")
-
     print("------Evaluating robust classifier-----")
-    classifier = KerasClassifier(model=robust_cnn, clip_values=(0, 1))
-    attack = FastGradientMethod(classifier=classifier, eps=0.3)
-    predict = classifier.predict(x_test)
     accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
     print('Accuracy on benign test examples: {:.3f}%'.format(accuracy * 100))
     x_example = x_test[example]
@@ -290,11 +281,11 @@ if __name__ == "__main__":
     # Generate adversarial test examples
     # Evaluate the ART classifier on adversarial test examples
     print("*"*100)
-    attack = FastGradientMethod(classifier=classifier, eps=0.3)
+    attack = FastGradientMethod(classifier=robust_cnn, eps=0.03)
     x_test_adv = attack.generate(x=x_test)
     perturbation = np.mean(np.abs((x_test_adv - x_test)))
     print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
+    predict = robust_cnn.predict(x_test_adv)
     predict_classes = np.argmax(predict, axis=-1)
     target_names = ["Class {}".format(i) for i in range(CLASSES)]
     print(classification_report(y_test, predict_classes, target_names=target_names))
@@ -303,11 +294,11 @@ if __name__ == "__main__":
     fg_example = x_test_adv[example]
 
     print("*"*100)
-    attack = CarliniLInfMethod(classifier=classifier, eps=0.3, max_iter=100, learning_rate=0.01)
+    attack = CarliniLInfMethod(classifier=robust_cnn, eps=0.03, max_iter=100, learning_rate=0.01)
     x_test_adv = attack.generate(x=x_test, y=tf.keras.utils.to_categorical(np.ones_like(y_test)))
     perturbation = np.mean(np.abs((x_test_adv - x_test)))
     print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
+    predict = robust_cnn.predict(x_test_adv)
     predict_classes = np.argmax(predict, axis=-1)
     target_names = ["Class {}".format(i) for i in range(CLASSES)]
     print(classification_report(y_test, predict_classes, target_names=target_names))
@@ -316,11 +307,11 @@ if __name__ == "__main__":
     carlini_example = x_test_adv[example]
 
     print("*"*100)
-    attack = ProjectedGradientDescent(classifier, norm=np.inf, eps=0.3, eps_step=0.1,max_iter=100)
+    attack = ProjectedGradientDescent(robust_cnn, norm=np.inf, eps=0.03, eps_step=0.007,max_iter=40)
     x_test_adv = attack.generate(x_test)
     perturbation = np.mean(np.abs((x_test_adv - x_test)))
     print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
+    predict = robust_cnn.predict(x_test_adv)
     predict_classes = np.argmax(predict, axis=-1)
     target_names = ["Class {}".format(i) for i in range(CLASSES)]
     print(classification_report(y_test, predict_classes, target_names=target_names))
@@ -329,11 +320,11 @@ if __name__ == "__main__":
     pgdInf_example = x_test_adv[example]
 
     print("*"*100)
-    attack = ProjectedGradientDescent(classifier, norm=1, eps=0.3, eps_step=0.1,max_iter=100)
+    attack = ProjectedGradientDescent(robust_cnn, norm=1, eps=12, eps_step=0.1,max_iter=100)
     x_test_adv = attack.generate(x_test)
     perturbation = np.mean(np.abs((x_test_adv - x_test)))
     print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
+    predict = robust_cnn.predict(x_test_adv)
     predict_classes = np.argmax(predict, axis=-1)
     target_names = ["Class {}".format(i) for i in range(CLASSES)]
     print(classification_report(y_test, predict_classes, target_names=target_names))
@@ -342,11 +333,11 @@ if __name__ == "__main__":
     pgd1_example = x_test_adv[example]
 
     print("*"*100)
-    attack = ProjectedGradientDescent(classifier, norm=2, eps=0.3, eps_step=0.1,max_iter=100)
+    attack = ProjectedGradientDescent(robust_cnn, norm=2, eps=0.5, eps_step=0.05,max_iter=100)
     x_test_adv = attack.generate(x_test)
     perturbation = np.mean(np.abs((x_test_adv - x_test)))
     print('Average perturbation: {:.10f}'.format(perturbation))
-    predict = classifier.predict(x_test_adv)
+    predict = robust_cnn.predict(x_test_adv)
     predict_classes = np.argmax(predict, axis=-1)
     target_names = ["Class {}".format(i) for i in range(CLASSES)]
     print(classification_report(y_test, predict_classes, target_names=target_names))
@@ -366,4 +357,4 @@ if __name__ == "__main__":
         plt.imshow(imgs[i])
         plt.title(img_labels[i])
 
-    plt.savefig("attack_example2.png")
+    plt.savefig("robust.png")
