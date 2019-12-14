@@ -72,6 +72,67 @@ def get_dataset_tbc_for_single(
     return ds
 
 
+def get_adv_dataset_tbc_for_single(
+    file_name,
+    attack_type,
+    classifier,
+    img_size=224,
+    horizontal_flip=True,
+    vertical_flip=False,
+    random_brightness=True,
+    random_contrast=True,
+    random_saturation=True,
+    random_hue=True,
+    random_crop=True,
+):
+    def augment_img(img, label):
+        if horizontal_flip:
+            img = tf.image.random_flip_left_right(img)
+        if vertical_flip:
+            img = tf.image.random_flip_up_down(img)
+        if random_brightness:
+            img = tf.image.random_brightness(img, max_delta=0.1)
+        if random_contrast:
+            img = tf.image.random_contrast(img, lower=0.75, upper=1.5)
+        if random_saturation:
+            img = tf.image.random_saturation(img, lower=0.75, upper=1.5)
+        if random_hue:
+            img = tf.image.random_hue(img, max_delta=0.15)
+        if random_crop:
+            img = tf.image.random_crop(img, (img_size, img_size, 3))
+        # Make sure the image is still in [0, 1]
+        img = tf.clip_by_value(img, 0.0, 1.0)
+        return img, label
+
+
+    npz = np.load(file_name)
+    imgs, labels, n = npz["imgs"], npz["labels"], npz["n"]
+    print(file_name, n)
+    ds_img = tf.data.Dataset.from_tensor_slices(imgs)
+    ds_label = tf.data.Dataset.from_tensor_slices(labels)
+    ds = tf.data.Dataset.zip((ds_img, ds_label))
+    ds = ds.map(augment_img, tf.data.experimental.AUTOTUNE)
+
+    imgs_aug = []
+    labels_aug = []
+    for img, label in ds:
+        imgs_aug.append(img.numpy())
+        labels_aug.append(label.numpy())
+    imgs_aug = np.array(imgs_aug)
+    labels_aug = np.array(labels_aug)
+
+    imgs_adv = generate_attack(attack_type, classifier, imgs_aug, labels_aug)
+    ds_img_adv = tf.data.Dataset.from_tensor_slices(imgs_adv)
+    ds_label_adv = tf.data.Dataset.from_tensor_slices(labels_aug)
+    ds_adv = tf.data.Dataset.zip((ds_img_adv, ds_label_adv))
+    ds = ds.concatenate(ds_adv)
+
+    ds = ds.shuffle(2*n, reshuffle_each_iteration=True)
+    ds = ds.batch(BATCH_SIZE)
+    ds = ds.repeat()
+    ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
+    return ds
+
 def get_model(FLAGS):
     base_model = tf.keras.applications.VGG19(
         weights="imagenet", include_top=False, input_shape=(HEIGHT, WIDTH, 3)
@@ -130,48 +191,54 @@ def main(argv):
     del argv
 
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-    train_ds = []
-    if FLAGS.m_div == 1:
-        train_ds.append(get_dataset_tbc_for_single("data/train_ms.npz", dataset_type="train"))
-    elif FLAGS.m_div == 2:
-        train_ds.append(get_dataset_tbc_for_single("data/train_ms2_1.npz", dataset_type="train"))
-        train_ds.append(get_dataset_tbc_for_single("data/train_ms2_2.npz", dataset_type="train"))
-    
-    if FLAGS.c_div == 1:
-        train_ds.append(get_dataset_tbc_for_single("data/train_cs.npz", dataset_type="train"))
-    elif FLAGS.c_div == 2:
-        train_ds.append(get_dataset_tbc_for_single("data/train_cs2_1.npz", dataset_type="train"))
-        train_ds.append(get_dataset_tbc_for_single("data/train_cs2_2.npz", dataset_type="train"))
-    elif FLAGS.c_div == 3:
-        train_ds.append(get_dataset_tbc_for_single("data/train_cs3_1.npz", dataset_type="train"))
-        train_ds.append(get_dataset_tbc_for_single("data/train_cs3_2.npz", dataset_type="train"))
-        train_ds.append(get_dataset_tbc_for_single("data/train_cs3_3.npz", dataset_type="train"))
 
     test_ds = get_dataset_tbc_for_single("data/test_all.npz", dataset_type="test")
 
     pretrained_fl = "weights/m1c1_2/r5_loss_0.4604_acc_0.8519.h5"
-    local_models = [tf.keras.models.load_model(pretrained_fl) for _ in train_ds]
+    local_models = [tf.keras.models.load_model(pretrained_fl) for _ in range(FLAGS.m_div + FLAGS.c_div)]
+    os.makedirs("weights/m{}c{}_{}".format(FLAGS.m_div, FLAGS.c_div, FLAGS.suffix), exist_ok=True)
 
     # ------------------      
-    # Robust Attack
+    # Adversarial Attack
     # ------------------
-    for x, y in test_ds:
-        x_test = x.numpy()
-        y_test = y.numpy()
+    # for x, y in test_ds:
+    #     x_test = x.numpy()
+    #     y_test = y.numpy()
 
+    # robust_model = KerasClassifier(model=local_models[0], clip_values=(0,1))
+
+    # for attack_type in ["fgm", "carlin", "pgd_inf", "pgd_1", "pgd_2"]:
+    #     X_adv = generate_attack(attack_type, robust_model, x_test, y_test)
+
+    #     predict = robust_model.predict(X_adv)
+    #     predict_classes = np.argmax(predict, axis=-1)
+    #     target_names = ["Class {}".format(i) for i in range(CLASSES)]
+    #     print(classification_report(y_test, predict_classes, target_names=target_names))
+    #     accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
+    #     print('Accuracy on {} Method test examples: {:.3f}%'.format(attack_type.upper(), accuracy * 100))
+    #     print()
+
+    # ------------------      
+    # Get Adversarial data
+    # ------------------
+    train_ds = []
     robust_model = KerasClassifier(model=local_models[0], clip_values=(0,1))
+    if FLAGS.m_div == 1:
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_ms.npz", "pgd_inf", robust_model))
+    elif FLAGS.m_div == 2:
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_ms2_1.npz", "pgd_inf", robust_model))
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_ms2_2.npz", "pgd_inf", robust_model))
+    
+    if FLAGS.c_div == 1:
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_cs.npz", "pgd_inf", robust_model))
+    elif FLAGS.c_div == 2:
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_cs2_1.npz", "pgd_inf", robust_model))
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_cs2_2.npz", "pgd_inf", robust_model))
+    elif FLAGS.c_div == 3:
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_cs3_1.npz", "pgd_inf", robust_model))
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_cs3_2.npz", "pgd_inf", robust_model))
+        train_ds.append(get_adv_dataset_tbc_for_single("data/train_cs3_3.npz", "pgd_inf", robust_model))
 
-    for attack_type in ["fgm", "carlin", "pgd_inf", "pgd_1", "pgd_2"]:
-        X_adv = generate_attack(attack_type, robust_model, x_test, y_test)
-
-        predict = robust_model.predict(X_adv)
-        predict_classes = np.argmax(predict, axis=-1)
-        target_names = ["Class {}".format(i) for i in range(CLASSES)]
-        print(classification_report(y_test, predict_classes, target_names=target_names))
-        accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
-        print('Accuracy on {} Method test examples: {:.3f}%'.format(attack_type.upper(), accuracy * 100))
-        print()
-        
     # ------------------      
     # Federated Learning
     # ------------------      
@@ -206,6 +273,26 @@ def main(argv):
         local_models[0].save(save_to)
 
     eval_precision_recall(local_models[0], test_ds)
+    
+    # ------------------      
+    # Adversarial Testing
+    # ------------------  
+    for x, y in test_ds:
+        x_test = x.numpy()
+        y_test = y.numpy()
+    
+    robust_model = KerasClassifier(model=local_models[0], clip_values=(0,1))
+
+    for attack_type in ["fgm", "carlin", "pgd_inf", "pgd_1", "pgd_2"]:
+        X_adv = generate_attack(attack_type, robust_model, x_test, y_test)
+
+        predict = robust_model.predict(X_adv)
+        predict_classes = np.argmax(predict, axis=-1)
+        target_names = ["Class {}".format(i) for i in range(CLASSES)]
+        print(classification_report(y_test, predict_classes, target_names=target_names))
+        accuracy = np.sum(np.argmax(predict, axis=1) == y_test) / len(y_test)
+        print('Accuracy on {} Method test examples: {:.3f}%'.format(attack_type.upper(), accuracy * 100))
+        print()
 
 
 if __name__ == "__main__":
